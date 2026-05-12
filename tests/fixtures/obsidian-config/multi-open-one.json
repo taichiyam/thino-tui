@@ -1,0 +1,7 @@
+{
+  "vaults": {
+    "v1": { "path": "/path/to/work-vault", "ts": 1700000001000, "open": false },
+    "v2": { "path": "/path/to/personal-vault", "ts": 1700000002000, "open": true },
+    "v3": { "path": "/path/to/archive-vault", "ts": 1700000003000, "open": false }
+  }
+}
