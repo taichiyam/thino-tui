@@ -1,0 +1,30 @@
+# Bun
+node_modules/
+bun.lockb
+.bun/
+
+# TypeScript
+dist/
+build/
+*.tsbuildinfo
+
+# Test
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+bun-debug.log*
+
+# Local
+.env
+.env.local
+z-ai/
