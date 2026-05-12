@@ -12,6 +12,8 @@ export type AppContextValue = {
   // Called when the user explicitly quits. Implementation is provided by index.tsx
   // and is responsible for tearing down the OpenTUI renderer before exiting the process.
   requestExit: () => void
+  /** オートリロード間隔（秒）。0 または "off" で無効。CLI flag による一時オーバーライド対応 */
+  reloadInterval: number | "off"
 }
 
 const Ctx = createContext<AppContextValue | null>(null)

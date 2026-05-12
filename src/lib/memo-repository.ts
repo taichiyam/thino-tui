@@ -95,6 +95,17 @@ function collectMemos(lines: string[], filePath: string, date: string): Memo[] {
   return memos
 }
 
+export function listDailyNotePaths(opts: MemoRepoOptions): string[] {
+  const cfg = readDailyNotesConfig(opts.vaultPath)
+  const paths: string[] = []
+  for (let i = 0; i < opts.days; i++) {
+    const date = shiftDate(opts.today, -i)
+    const path = dailyNotePath(opts.vaultPath, date, cfg)
+    if (existsSync(path)) paths.push(path)
+  }
+  return paths
+}
+
 export function listMemos(opts: MemoRepoOptions): Memo[] {
   const cfg = readDailyNotesConfig(opts.vaultPath)
   const memos: Memo[] = []
