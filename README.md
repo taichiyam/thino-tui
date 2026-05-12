@@ -20,13 +20,29 @@ Built with **Bun + TypeScript + [OpenTUI](https://github.com/anomalyco/opentui)*
 
 [`thn`](https://github.com/ignission/thn) is a minimal one-shot CLI for appending Thino memos. `thino-tui` aims to be a richer TUI counterpart: you can browse recent memos and add new ones interactively without leaving the terminal.
 
+## Install (local)
+
+[Bun](https://bun.sh/) is required.
+
+```bash
+git clone https://github.com/taichiyam/thino-tui.git
+cd thino-tui
+bun install
+bun link            # registers the `thino-tui` bin globally for your Bun install
+```
+
+`bun link` symlinks the `thino-tui` command into Bun's global bin (typically `~/.bun/bin/thino-tui`). Make sure `~/.bun/bin` is on your `$PATH`.
+
+To uninstall: `bun unlink` from this directory.
+
 ## Usage
 
 ```bash
-# via environment variable
-OBSIDIAN_VAULT=/path/to/vault bun run src/index.tsx
+# after `bun link`
+thino-tui --vault /path/to/vault
+OBSIDIAN_VAULT=/path/to/vault thino-tui
 
-# via flag
+# or run from source without installing
 bun run src/index.tsx --vault /path/to/vault --days 7
 ```
 

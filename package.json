@@ -3,6 +3,9 @@
   "module": "src/index.tsx",
   "type": "module",
   "private": true,
+  "bin": {
+    "thino-tui": "./src/index.tsx"
+  },
   "scripts": {
     "start": "bun run src/index.tsx",
     "test": "bun test",
