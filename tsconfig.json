@@ -26,6 +26,13 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noPropertyAccessFromIndexSignature": false,
+
+    // Path aliases — required by @hascii/ui registry components (src/components/hascii/*).
+    // The components are vendored from https://ui.hascii.sh/ via shadcn registry and use `@/components/hascii/...` imports.
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   }
 }

@@ -7,6 +7,7 @@ import { useApp } from "../app"
 import { MemoRow } from "../components/memo-row"
 import { DateHeader } from "../components/date-header"
 import { StatusBar } from "../components/status-bar"
+import { HasciiButton } from "../components/hascii/button"
 
 const SUBMIT_KEY_BINDINGS = [
   { name: "return", super: true, action: "submit" as const },
@@ -54,6 +55,12 @@ export function HomeScreen() {
     }
   }
 
+  const clear = () => {
+    textareaRef.current?.clear()
+    setAsTask(false)
+    setError(null)
+  }
+
   useKeyboard((key) => {
     if (app.readOnly) {
       if (key.name === "r") setRefreshTick((t) => t + 1)
@@ -70,7 +77,7 @@ export function HomeScreen() {
 
   const hint = app.readOnly
     ? `READ-ONLY: ${app.thinoConfig.mode}  r: refresh  q: quit`
-    : "Cmd+Enter / Ctrl+Enter: submit  Tab: toggle task  Ctrl+R: reload  Ctrl+Q: quit"
+    : "Cmd+Enter / Ctrl+Enter: submit  Tab: toggle task  Ctrl+R: reload  Ctrl+Q: quit  (or click [Submit]/[Clear])"
 
   return (
     <box style={{ flexDirection: "column", padding: 1, flexGrow: 1 }}>
@@ -90,9 +97,17 @@ export function HomeScreen() {
               onSubmit={submit}
             />
           </box>
-          <box style={{ flexDirection: "row" }}>
-            <text>{`[${asTask ? "x" : " "}] append as task`}</text>
-            {error && <text>{`   error: ${error}`}</text>}
+          <box style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <box style={{ flexDirection: "row" }}>
+              <text>{`[${asTask ? "x" : " "}] append as task`}</text>
+              {error && <text>{`   error: ${error}`}</text>}
+            </box>
+            <box style={{ flexDirection: "row", marginLeft: 1 }}>
+              <HasciiButton size="sm" onPress={submit}>Submit</HasciiButton>
+              <box style={{ marginLeft: 1 }}>
+                <HasciiButton size="sm" variant="outline" onPress={clear}>Clear</HasciiButton>
+              </box>
+            </box>
           </box>
         </>
       )}
