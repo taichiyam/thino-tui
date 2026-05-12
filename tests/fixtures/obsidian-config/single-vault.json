@@ -1,0 +1,6 @@
+{
+  "vaults": {
+    "abc123": { "path": "/path/to/only-vault", "ts": 1700000000000, "open": true }
+  },
+  "cli": true
+}

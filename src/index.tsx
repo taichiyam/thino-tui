@@ -39,7 +39,9 @@ USAGE:
   thino-tui [--vault PATH] [--days N] [--read-only]
 
 OPTIONS:
-  --vault PATH    Path to the Obsidian vault (or set OBSIDIAN_VAULT env var)
+  --vault PATH    Path to the Obsidian vault. If omitted, auto-detected from
+                  Obsidian's own vault list (no setup needed once you have
+                  opened a vault in Obsidian). Falls back to $OBSIDIAN_VAULT.
   --days N        How many past days to list (default: 7)
   --read-only     Disable compose
   -h, --help      Show this help

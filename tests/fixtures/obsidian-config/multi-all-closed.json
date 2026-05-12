@@ -1,0 +1,7 @@
+{
+  "vaults": {
+    "v1": { "path": "/path/to/old", "ts": 1700000001000, "open": false },
+    "v2": { "path": "/path/to/recent", "ts": 1700000999000, "open": false },
+    "v3": { "path": "/path/to/middle", "ts": 1700000500000, "open": false }
+  }
+}
