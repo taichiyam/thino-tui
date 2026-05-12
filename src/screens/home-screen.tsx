@@ -1,4 +1,4 @@
-import type { TextareaRenderable } from "@opentui/core"
+import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
 import { useMemo, useRef, useState } from "react"
 import { appendMemo, listMemos } from "../lib/memo-repository"
@@ -19,6 +19,7 @@ const SUBMIT_KEY_BINDINGS = [
 export function HomeScreen() {
   const app = useApp()
   const textareaRef = useRef<TextareaRenderable>(null)
+  const scrollBoxRef = useRef<ScrollBoxRenderable>(null)
   const [asTask, setAsTask] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
@@ -66,7 +67,18 @@ export function HomeScreen() {
 
   const toggleView = () => setViewMode((m) => (m === "line" ? "card" : "line"))
 
+  const scrollDown = () => scrollBoxRef.current?.scrollBy(3)
+  const scrollUp = () => scrollBoxRef.current?.scrollBy(-3)
+  const scrollPageDown = () => scrollBoxRef.current?.scrollBy(0.5, "viewport")
+  const scrollPageUp = () => scrollBoxRef.current?.scrollBy(-0.5, "viewport")
+  const scrollToTop = () => scrollBoxRef.current?.scrollTo(0)
+  const scrollToBottom = () => scrollBoxRef.current?.scrollTo(999999)
+
   useKeyboard((key) => {
+    // PageUp/PageDown work in both read-only and write modes
+    if (key.name === "pagedown") { scrollPageDown(); return }
+    if (key.name === "pageup") { scrollPageUp(); return }
+
     // Ctrl+C is reserved by the terminal/runtime for SIGINT, so use Ctrl+V for the view toggle.
     if (key.ctrl && key.name === "v") {
       toggleView()
@@ -77,6 +89,10 @@ export function HomeScreen() {
       if (key.name === "r") setRefreshTick((t) => t + 1)
       else if (key.name === "q") app.requestExit()
       else if (key.name === "c") toggleView()
+      else if (key.name === "j" || key.name === "down") scrollDown()
+      else if (key.name === "k" || key.name === "up") scrollUp()
+      else if (key.name === "g") scrollToTop()
+      else if (key.name === "G" || (key.shift && key.name === "g")) scrollToBottom()
       return
     }
     if (key.name === "tab") {
@@ -88,8 +104,8 @@ export function HomeScreen() {
   })
 
   const hint = app.readOnly
-    ? `READ-ONLY: ${app.thinoConfig.mode}  r: refresh  c/Ctrl+V: toggle view  q: quit`
-    : "Cmd+Enter / Ctrl+Enter: submit  Tab: toggle task  Ctrl+V: toggle view  Ctrl+R: reload  Ctrl+Q: quit"
+    ? `READ-ONLY: ${app.thinoConfig.mode}  r: refresh  c/Ctrl+V: toggle view  j/k: scroll  g/G: top/bot  q: quit`
+    : "Cmd+Enter / Ctrl+Enter: submit  Tab: toggle task  Ctrl+V: toggle view  Ctrl+R: reload  Ctrl+Q: quit  PgUp/PgDn: scroll"
 
   return (
     <box style={{ flexDirection: "column", padding: 1, flexGrow: 1 }}>
@@ -138,17 +154,26 @@ export function HomeScreen() {
         </>
       )}
 
-      {groups.length === 0 && <text>(no memos in the last {app.days} days)</text>}
-      {groups.map(([date, list]) => (
-        <box key={date} style={{ flexDirection: "column", marginTop: 1 }}>
-          <DateHeader date={date} />
-          {list.map((m) =>
-            viewMode === "card"
-              ? <MemoCard key={m.id} memo={m} selected={false} />
-              : <MemoRow key={m.id} memo={m} selected={false} />
-          )}
-        </box>
-      ))}
+      <scrollbox
+        ref={scrollBoxRef}
+        style={{ flexGrow: 1, flexDirection: "column" }}
+        scrollY={true}
+        stickyScroll={false}
+        viewportCulling={false}
+        verticalScrollbarOptions={{ showArrows: false }}
+      >
+        {groups.length === 0 && <text>(no memos in the last {app.days} days)</text>}
+        {groups.map(([date, list]) => (
+          <box key={date} style={{ flexDirection: "column", marginTop: 1 }}>
+            <DateHeader date={date} />
+            {list.map((m) =>
+              viewMode === "card"
+                ? <MemoCard key={m.id} memo={m} selected={false} />
+                : <MemoRow key={m.id} memo={m} selected={false} />
+            )}
+          </box>
+        ))}
+      </scrollbox>
 
       <StatusBar hint={hint} />
     </box>
