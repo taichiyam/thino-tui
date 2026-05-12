@@ -9,11 +9,12 @@ type CliArgs = {
   vault?: string
   days?: number
   readOnly: boolean
+  resetVault: boolean
   help: boolean
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { readOnly: false, help: false }
+  const args: CliArgs = { readOnly: false, resetVault: false, help: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === "--vault") {
@@ -25,6 +26,8 @@ function parseArgs(argv: string[]): CliArgs {
       if (v) args.days = Number(v)
     } else if (a === "--read-only") {
       args.readOnly = true
+    } else if (a === "--reset-vault") {
+      args.resetVault = true
     } else if (a === "--help" || a === "-h") {
       args.help = true
     }
@@ -36,7 +39,7 @@ function printHelp() {
   console.log(`thino-tui — Obsidian Thino memos in your terminal
 
 USAGE:
-  thino-tui [--vault PATH] [--days N] [--read-only]
+  thino-tui [--vault PATH] [--days N] [--read-only] [--reset-vault]
 
 OPTIONS:
   --vault PATH    Path to the Obsidian vault. If omitted, auto-detected from
@@ -44,6 +47,8 @@ OPTIONS:
                   opened a vault in Obsidian). Falls back to $OBSIDIAN_VAULT.
   --days N        How many past days to list (default: 7)
   --read-only     Disable compose
+  --reset-vault   Forget the cached vault choice and ask again (only relevant
+                  when multiple vaults exist and none / many are open).
   -h, --help      Show this help
 `)
 }
@@ -69,7 +74,7 @@ async function main() {
 
   let vaultPath: string
   try {
-    vaultPath = resolveVaultPath({ flag: args.vault })
+    vaultPath = await resolveVaultPath({ flag: args.vault, reset: args.resetVault })
   } catch (e) {
     console.error(`thino-tui: ${e instanceof Error ? e.message : String(e)}`)
     process.exit(1)
