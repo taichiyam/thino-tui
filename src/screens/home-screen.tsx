@@ -5,6 +5,7 @@ import { appendMemo, listMemos } from "../lib/memo-repository"
 import type { Memo } from "../lib/memo"
 import { useApp } from "../app"
 import { MemoRow } from "../components/memo-row"
+import { MemoCard } from "../components/memo-card"
 import { DateHeader } from "../components/date-header"
 import { StatusBar } from "../components/status-bar"
 import { HasciiButton } from "../components/hascii/button"
@@ -21,6 +22,7 @@ export function HomeScreen() {
   const [asTask, setAsTask] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
+  const [viewMode, setViewMode] = useState<"line" | "card">("line")
 
   const memos = useMemo(
     () => listMemos({ vaultPath: app.vaultPath, today: app.today(), days: app.days }),
@@ -62,10 +64,19 @@ export function HomeScreen() {
     setError(null)
   }
 
+  const toggleView = () => setViewMode((m) => (m === "line" ? "card" : "line"))
+
   useKeyboard((key) => {
+    // Ctrl+C is reserved by the terminal/runtime for SIGINT, so use Ctrl+V for the view toggle.
+    if (key.ctrl && key.name === "v") {
+      toggleView()
+      return
+    }
     if (app.readOnly) {
+      if (key.ctrl || key.meta) return
       if (key.name === "r") setRefreshTick((t) => t + 1)
       else if (key.name === "q") app.requestExit()
+      else if (key.name === "c") toggleView()
       return
     }
     if (key.name === "tab") {
@@ -77,8 +88,8 @@ export function HomeScreen() {
   })
 
   const hint = app.readOnly
-    ? `READ-ONLY: ${app.thinoConfig.mode}  r: refresh  q: quit`
-    : "Cmd+Enter / Ctrl+Enter: submit  Tab: toggle task  Ctrl+R: reload  Ctrl+Q: quit  (or click [Submit]/[Clear])"
+    ? `READ-ONLY: ${app.thinoConfig.mode}  r: refresh  c/Ctrl+V: toggle view  q: quit`
+    : "Cmd+Enter / Ctrl+Enter: submit  Tab: toggle task  Ctrl+V: toggle view  Ctrl+R: reload  Ctrl+Q: quit"
 
   return (
     <box style={{ flexDirection: "column", padding: 1, flexGrow: 1 }}>
@@ -117,9 +128,11 @@ export function HomeScreen() {
       {groups.map(([date, list]) => (
         <box key={date} style={{ flexDirection: "column", marginTop: 1 }}>
           <DateHeader date={date} />
-          {list.map((m) => (
-            <MemoRow key={m.id} memo={m} selected={false} />
-          ))}
+          {list.map((m) =>
+            viewMode === "card"
+              ? <MemoCard key={m.id} memo={m} selected={false} />
+              : <MemoRow key={m.id} memo={m} selected={false} />
+          )}
         </box>
       ))}
 
