@@ -1,0 +1,28 @@
+{
+  "name": "thino-tui",
+  "module": "src/index.tsx",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "thino-tui": "./src/index.tsx"
+  },
+  "scripts": {
+    "start": "bun run src/index.tsx",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
+    "build": "bun build --compile ./src/index.tsx --outfile dist/thino-tui",
+    "install:local": "bun build --compile ./src/index.tsx --outfile $HOME/.bun/bin/thino-tui"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.14"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.2.7",
+    "@opentui/react": "^0.2.7",
+    "react": "^19.2.6"
+  }
+}

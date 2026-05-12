@@ -27,9 +27,10 @@ MVP scope is intentionally narrow: **list recent memos + append a new memo**. Ed
 | Runtime | Bun |
 | Language | TypeScript |
 | TUI framework | [OpenTUI](https://github.com/anomalyco/opentui) (Zig native core + React renderer) |
-| UI components | [hascii-ui](https://github.com/shigurenimo/hascii-ui) (shadcn-style OpenTUI component library) |
 | Test runner | `bun test` |
-| Scaffold | `bun create tui` (OpenTUI) + `bunx @hascii/ui init` |
+| Scaffold | `bun init` + `bun add @opentui/core @opentui/react react` |
+
+> **Note (revised 2026-05-12):** [hascii-ui](https://github.com/shigurenimo/hascii-ui) was initially listed as the UI component library, but the MVP turned out not to need any of its components (the screens are composed directly from OpenTUI primitives). The dependency has been dropped per YAGNI. Re-introduce it in a later iteration if richer components (badges, focus groups) become necessary.
 
 ## 4. Architecture
 
@@ -124,7 +125,7 @@ MVP has only these two screens. Errors are surfaced via an inline banner / toast
 └─────────────────────────────────────────────────────────┘
 ```
 
-- Header: title on the left, Thino mode badge on the right (`HasciiBadge`). Non-DAILY modes show `READ-ONLY: <mode>`.
+- Header: title on the left, Thino mode shown on the right. Non-DAILY modes show `READ-ONLY: <mode>`.
 - Body: date headings, then `HH:MM  <body>` rows.
 - Selected row gets `▌` marker + inverted theme color.
 - Footer: keybinding help line.
@@ -138,11 +139,11 @@ MVP has only these two screens. Errors are surfaced via an inline banner / toast
 │  └───────────────────────────────────────────────────┘ │
 │   [ ] Append as task ( -[ ] form )                     │
 ├─────────────────────────────────────────────────────────┤
-│   Ctrl+Enter: submit   Esc: cancel   Tab: toggle task   │
+│   Ctrl+S: submit   Esc: cancel   Tab: toggle task       │
 └─────────────────────────────────────────────────────────┘
 ```
 
-- Focus cycle is managed by `HasciiFocusGroup`: body → task-toggle → submit/cancel buttons.
+- The textarea has primary focus; `Tab` toggles the "append as task" flag (focus cycling between widgets is deferred).
 - Header timestamp is for display only; the actual submit time is recomputed on submit.
 
 ### Keybindings (MVP)
@@ -154,9 +155,8 @@ MVP has only these two screens. Errors are surfaced via an inline banner / toast
 | List | `n` | Open ComposeScreen |
 | List | `r` | Reload memos |
 | List | `q` / `Ctrl+C` | Quit |
-| Compose | `Ctrl+Enter` | Submit (`appendMemo`) |
-| Compose | `Tab` | Cycle focus |
-| Compose | `Space` | Toggle task (when checkbox focused) |
+| Compose | `Ctrl+S` (or `Ctrl+D`) | Submit (`appendMemo`) — `Ctrl+Enter` was the original plan but `Enter` is consumed by the textarea for newlines, so a non-conflicting binding is used instead |
+| Compose | `Tab` | Toggle "append as task" |
 | Compose | `Esc` | Cancel and return to List |
 
 ### State management
@@ -182,7 +182,7 @@ MVP has only these two screens. Errors are surfaced via an inline banner / toast
 | Thino mode is not DAILY | Force read-only: ListScreen shows `READ-ONLY: <mode>` badge; Compose disabled. |
 | Today's daily note absent (on append) | Auto-create parent folder and file. No template is applied (documented MVP limitation). |
 | File write failure | Return to ComposeScreen, show error toast, preserve body for retry. |
-| iCloud sync lock | Retry write up to 3 times, 200 ms interval. Then surface error. |
+| iCloud sync lock (`EBUSY` / `EAGAIN` / `EACCES` / `EPERM`) | Retry write up to 3 times, 200 ms interval. Then surface error. Implemented in `memo-repository.ts#withRetrySync`. |
 
 All writes are append-only. Existing lines are never modified.
 
@@ -249,19 +249,19 @@ thino-tui/
 ```json
 {
   "dependencies": {
-    "@opentui/core": "latest",
-    "@opentui/react": "latest",
-    "@hascii/ui": "latest",
-    "react": "^18 or 19"
+    "@opentui/core": "^0.2.7",
+    "@opentui/react": "^0.2.7",
+    "react": "^19"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/react": "^19",
     "typescript": "^5"
   }
 }
 ```
 
-Exact versions are pinned at scaffold time using `bun create tui` and `bunx @hascii/ui init` output.
+Versions above reflect what was actually pinned at scaffold time (`bun add @opentui/core @opentui/react react`).
 
 ## 12. Open Questions
 
@@ -273,7 +273,7 @@ Exact versions are pinned at scaffold time using `bun create tui` and `bunx @has
 ## 13. Commit Plan
 
 1. Commit this spec on `main` (initial repo bootstrap).
-2. Switch to a feature branch `feat/initial-scaffold` for the project skeleton (Bun project, tsconfig, OpenTUI scaffold, hascii-ui init).
+2. Switch to a feature branch `feat/initial-scaffold` for the project skeleton (Bun project, tsconfig, OpenTUI scaffold).
 3. Implement Infrastructure layer with tests on `feat/lib-foundation`.
 4. Implement screens incrementally on `feat/list-screen`, `feat/compose-screen`.
 
