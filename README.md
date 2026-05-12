@@ -1,132 +1,113 @@
 # thino-tui
 
-Terminal UI for [Obsidian Thino](https://github.com/Quorafind/Obsidian-Thino) plugin.
+**Obsidian の [Thino](https://github.com/Quorafind/Obsidian-Thino) メモをターミナルから読み書きする TUI。**
 
-Built with **Bun + TypeScript + [OpenTUI](https://github.com/anomalyco/opentui)**.
+[Thino](https://github.com/Quorafind/Obsidian-Thino) プラグインを使っている Obsidian ユーザー向けの軽量 TUI。Obsidian を開かなくても、ターミナルから直接メモを追記したり、最近のメモを一覧できる。データは Vault の Markdown に直接書き込まれるので、Obsidian 側の Thino パネルと完全に同じものを編集している感覚で使える。
 
-## Status
+Built with **Bun + TypeScript + [OpenTUI](https://github.com/anomalyco/opentui) + [hascii-ui](https://ui.hascii.sh)**.
 
-✅ MVP shipped on `feat/initial-scaffold` — list + append.
+## Features
 
-- [x] Design spec ([`docs/superpowers/specs/2026-05-12-thino-tui-design.md`](docs/superpowers/specs/2026-05-12-thino-tui-design.md))
-- [x] Implementation plan ([`docs/superpowers/plans/2026-05-12-thino-tui-plan.md`](docs/superpowers/plans/2026-05-12-thino-tui-plan.md))
-- [x] Project scaffold (Bun + OpenTUI)
-- [x] `lib/` layer + unit tests (`bun test`)
-- [x] HomeScreen (compose on top, recent memos below)
-- [x] Multi-line memos (Thino-style header + indented continuation)
-- [ ] Edit / delete / search (future iterations)
+- 複数行のメモを Thino スタイル（時刻ヘッダ + インデント継続）で追記
+- 過去 N 日分のメモを一覧表示、行表示 / カード表示の切替に対応
+- タスク形式 (`- [ ]`) でのメモ投稿
+- マウス（クリック / ホイール）+ キーボード両対応
+- 非 DAILY モード（JOURNAL / MULTI / CANVAS / FILE）は自動で read-only
 
-## Concept
+## Installation
 
-[`thn`](https://github.com/ignission/thn) is a minimal one-shot CLI for appending Thino memos. `thino-tui` aims to be a richer TUI counterpart: you can browse recent memos and add new ones interactively without leaving the terminal.
-
-## Install (local)
-
-[Bun](https://bun.sh/) is required. Make sure `~/.bun/bin` is on your `$PATH`.
+[Bun](https://bun.sh/) が必要です。`~/.bun/bin` が `$PATH` に通っていることも確認してください。
 
 ```bash
 git clone https://github.com/taichiyam/thino-tui.git
 cd thino-tui
 bun install
+bun link
 ```
 
-Two install styles are available:
+これで `thino-tui` コマンドがどこからでも使えるようになります。ビルド不要で TypeScript ソースを直接実行します。アンインストールはこのディレクトリで `bun unlink`。
 
-### Option A: `bun link` (live source)
-
-```bash
-bun link             # symlinks `thino-tui` to this working tree
-```
-
-The installed command always reflects the current git branch / file state. Convenient during development. Uninstall with `bun unlink` from this directory.
-
-### Option B: compiled binary (recommended for daily use)
-
-```bash
-bun run install:local   # compiles a standalone binary into ~/.bun/bin/thino-tui
-```
-
-The installed binary is independent of git branches — switching branches in this repo does not affect the installed command. Re-run `bun run install:local` whenever you want to update.
-
-A non-installing build is also available:
-
-```bash
-bun run build           # writes dist/thino-tui (gitignored)
-```
+> **補足: バイナリ配置版**
+> ブランチ切り替えの影響を受けたくない場合は、コンパイル済みバイナリを `~/.bun/bin/` に配置できます:
+> ```bash
+> bun run install:local
+> ```
+> 更新したいときに再度実行してください。
 
 ## Usage
 
 ```bash
-# after `bun link`
 thino-tui --vault /path/to/vault
+
+# 環境変数でも可
 OBSIDIAN_VAULT=/path/to/vault thino-tui
 
-# or run from source without installing
+# ソース直接実行（インストール不要）
 bun run src/index.tsx --vault /path/to/vault --days 7
 ```
 
-### Flags
+### フラグ
 
-| Flag | Default | Description |
+| フラグ | デフォルト | 説明 |
 |---|---|---|
-| `--vault PATH` | `$OBSIDIAN_VAULT` | Path to the Obsidian vault |
-| `--days N` | `7` | How many past days to list |
-| `--read-only` | off | Disable compose unconditionally |
-| `--help` / `-h` | — | Show help |
+| `--vault PATH` | `$OBSIDIAN_VAULT` | Obsidian Vault のパス |
+| `--days N` | `7` | 過去何日分のメモを一覧するか |
+| `--read-only` | off | 入力欄を強制的に無効化 |
+| `--help` / `-h` | — | ヘルプを表示 |
 
-### Keys
+### キーバインド
 
-The compose textarea is focused on launch. Recent memos render below it (read-only).
+起動時はテキストエリアにフォーカスがあり、その下に最近のメモが読み取り専用で並びます。
 
-| Key | Action |
+| キー | 動作 |
 |---|---|
-| `Cmd+Enter` / `Ctrl+Enter` | Submit the memo |
-| `Enter` | Insert newline (multi-line memo) |
-| `Tab` | Toggle "append as task" |
-| `Ctrl+R` | Reload memos |
-| `Ctrl+Q` | Quit |
+| `Cmd+Enter` / `Ctrl+Enter` | メモを投稿 |
+| `Enter` | 改行（複数行メモ） |
+| `Tab` | タスク形式 (`- [ ]`) のオン/オフ |
+| `Ctrl+R` | メモ一覧を再読み込み |
+| `Ctrl+Q` | 終了 |
 
-In read-only mode (Thino mode ≠ DAILY, or `--read-only` flag), the textarea is hidden and `r` / `q` work as plain keys.
+read-only モード（Thino mode が DAILY 以外、または `--read-only`）では入力欄が消え、`r` / `q` が単独キーとして動作します。
 
-> `Cmd+Enter` requires a terminal that reports the Cmd key as `super` via the Kitty keyboard protocol (Ghostty, WezTerm, iTerm2 with CSI u, etc.). `Ctrl+Enter` is the cross-terminal fallback.
+> `Cmd+Enter` は Kitty キーボードプロトコルで Cmd を `super` として通知してくれるターミナル（Ghostty / WezTerm / iTerm2 with CSI u など）が必要です。それ以外では `Ctrl+Enter` を使ってください。
 
-## Architecture (MVP)
+## Configuration
 
-```
-[OpenTUI / React renderer]      ← View
-     ↓
-src/screens/*.tsx              ← Container
-     ↓
-src/lib/memo-repository.ts     ← Application (list / append)
-     ↓
-src/lib/*-config.ts            ← Infrastructure (vault / thino / daily-notes)
-     ↓
-Vault filesystem               ← External
-```
+Vault のパスは以下の優先順で解決します:
+
+1. `--vault PATH` フラグ
+2. 環境変数 `OBSIDIAN_VAULT`
+3. どちらもない場合は起動時にエラー
+
+時刻は JST (UTC+09:00) 固定です。
+
+## Notes
+
+現状の MVP の制約:
+
+- Thino mode は **DAILY のみ書き込み可能**（他モードは read-only で閲覧）
+- デイリーノートのファイル名形式は `YYYY-MM-DD` 固定
+- ファイル変更の自動監視はなし（`Ctrl+R` で再読み込み）
+- 編集 / 削除 / 検索は未実装
+
+レイヤー構成や Thino のデータ形式の詳細は [`docs/architecture.md`](docs/architecture.md) を参照。
 
 ## Development
 
 ```bash
 bun install
-bun test           # 15 unit tests covering lib/
-bun run typecheck  # tsc --noEmit
-bun start          # alias for `bun run src/index.tsx`
+bun test            # lib/ のユニットテスト
+bun run typecheck   # tsc --noEmit
+bun start           # alias for `bun run src/index.tsx`
 ```
-
-## Limitations (current MVP)
-
-- DAILY Thino mode only. Other modes (JOURNAL / MULTI / CANVAS / FILE) force read-only.
-- Daily-notes filename format is hard-coded to `YYYY-MM-DD`.
-- No file watching — memos refresh only on `r` keypress.
-- No edit/delete/search.
-- Time is fixed to JST (UTC+09:00).
 
 ## References
 
-- [Thino plugin](https://github.com/Quorafind/Obsidian-Thino)
-- [`thn` CLI (Rust)](https://github.com/ignission/thn) — inspiration / data model reference
-- [OpenTUI](https://github.com/anomalyco/opentui) — TUI runtime
+- [Thino plugin](https://github.com/Quorafind/Obsidian-Thino) — Obsidian 用のメモプラグイン本体
+- [`thn` CLI](https://github.com/ignission/thn) — シンプルな先行 Rust 製 CLI。データモデル参照元
+- [OpenTUI](https://github.com/anomalyco/opentui) — TUI ランタイム
+- [hascii-ui](https://ui.hascii.sh) — TUI コンポーネントレジストリ
 
 ## License
 
-Private repository, all rights reserved (for now).
+MIT (planned)。現在はプライベートリポジトリ段階のため、公開化のタイミングで `LICENSE` を追加します（[#4](https://github.com/taichiyam/thino-tui/issues/4) Phase 4）。
