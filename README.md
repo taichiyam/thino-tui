@@ -22,18 +22,37 @@ Built with **Bun + TypeScript + [OpenTUI](https://github.com/anomalyco/opentui)*
 
 ## Install (local)
 
-[Bun](https://bun.sh/) is required.
+[Bun](https://bun.sh/) is required. Make sure `~/.bun/bin` is on your `$PATH`.
 
 ```bash
 git clone https://github.com/taichiyam/thino-tui.git
 cd thino-tui
 bun install
-bun link            # registers the `thino-tui` bin globally for your Bun install
 ```
 
-`bun link` symlinks the `thino-tui` command into Bun's global bin (typically `~/.bun/bin/thino-tui`). Make sure `~/.bun/bin` is on your `$PATH`.
+Two install styles are available:
 
-To uninstall: `bun unlink` from this directory.
+### Option A: `bun link` (live source)
+
+```bash
+bun link             # symlinks `thino-tui` to this working tree
+```
+
+The installed command always reflects the current git branch / file state. Convenient during development. Uninstall with `bun unlink` from this directory.
+
+### Option B: compiled binary (recommended for daily use)
+
+```bash
+bun run install:local   # compiles a standalone binary into ~/.bun/bin/thino-tui
+```
+
+The installed binary is independent of git branches — switching branches in this repo does not affect the installed command. Re-run `bun run install:local` whenever you want to update.
+
+A non-installing build is also available:
+
+```bash
+bun run build           # writes dist/thino-tui (gitignored)
+```
 
 ## Usage
 

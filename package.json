@@ -9,7 +9,9 @@
   "scripts": {
     "start": "bun run src/index.tsx",
     "test": "bun test",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "build": "bun build --compile ./src/index.tsx --outfile dist/thino-tui",
+    "install:local": "bun build --compile ./src/index.tsx --outfile $HOME/.bun/bin/thino-tui"
   },
   "devDependencies": {
     "@types/bun": "latest",
