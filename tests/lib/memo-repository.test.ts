@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { listMemos, appendMemo, type MemoRepoOptions } from "../../src/lib/memo-repository"
+import { listMemos, appendMemo, _internal, type MemoRepoOptions } from "../../src/lib/memo-repository"
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
@@ -65,5 +65,48 @@ describe("appendMemo", () => {
       vaultPath: vault, today: "2026-05-13", days: 7,
     })
     expect(readFileSync(join(vault, "2026-05-13.md"), "utf-8")).toBe("- [ ] 07:00 やること\n")
+  })
+})
+
+describe("withRetrySync (iCloud lock retry)", () => {
+  test("[正常] EBUSY を投げる関数は MAX_RETRIES+1 回まで再試行され最終的に成功する", () => {
+    let calls = 0
+    const result = _internal.withRetrySync(() => {
+      calls++
+      if (calls <= _internal.MAX_RETRIES) {
+        const err = new Error("locked") as NodeJS.ErrnoException
+        err.code = "EBUSY"
+        throw err
+      }
+      return "ok"
+    })
+    expect(result).toBe("ok")
+    expect(calls).toBe(_internal.MAX_RETRIES + 1)
+  })
+
+  test("[異常] retry不能なエラーは即座に伝播し再試行されない", () => {
+    let calls = 0
+    expect(() =>
+      _internal.withRetrySync(() => {
+        calls++
+        const err = new Error("missing") as NodeJS.ErrnoException
+        err.code = "ENOENT"
+        throw err
+      }),
+    ).toThrow(/missing/)
+    expect(calls).toBe(1)
+  })
+
+  test("[異常] retry を MAX_RETRIES 回繰り返してもダメな場合は最後の例外を投げる", () => {
+    let calls = 0
+    expect(() =>
+      _internal.withRetrySync(() => {
+        calls++
+        const err = new Error("busy forever") as NodeJS.ErrnoException
+        err.code = "EBUSY"
+        throw err
+      }),
+    ).toThrow(/busy forever/)
+    expect(calls).toBe(_internal.MAX_RETRIES + 1)
   })
 })

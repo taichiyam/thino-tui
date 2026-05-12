@@ -14,6 +14,31 @@ export type AppendOptions = {
   asTask?: boolean
 }
 
+// File-system error codes that warrant a retry on iCloud Drive,
+// where the sync agent can briefly hold the file open.
+const RETRYABLE_CODES = new Set(["EBUSY", "EAGAIN", "EACCES", "EPERM"])
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 200
+
+function isRetryable(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code
+  return code !== undefined && RETRYABLE_CODES.has(code)
+}
+
+function withRetrySync<T>(fn: () => T): T {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return fn()
+    } catch (err) {
+      if (!isRetryable(err)) throw err
+      lastError = err
+      if (attempt < MAX_RETRIES) Bun.sleepSync(RETRY_DELAY_MS)
+    }
+  }
+  throw lastError
+}
+
 function shiftDate(yyyymmdd: string, deltaDays: number): string {
   const [y, m, d] = yyyymmdd.split("-").map(Number)
   if (!y || !m || !d) throw new Error(`invalid date: ${yyyymmdd}`)
@@ -50,18 +75,25 @@ export function listMemos(opts: MemoRepoOptions): Memo[] {
 export function appendMemo(text: string, append: AppendOptions, opts: MemoRepoOptions): Memo {
   const cfg = readDailyNotesConfig(opts.vaultPath)
   const path = dailyNotePath(opts.vaultPath, opts.today, cfg)
-  mkdirSync(dirname(path), { recursive: true })
   const prefix = append.asTask ? `- [ ] ${append.time} ` : `- ${append.time} `
   const line = `${prefix}${text}`
-  if (!existsSync(path)) {
-    writeFileSync(path, `${line}\n`)
-  } else {
+
+  withRetrySync(() => {
+    mkdirSync(dirname(path), { recursive: true })
+    if (!existsSync(path)) {
+      writeFileSync(path, `${line}\n`)
+      return
+    }
     const current = readFileSync(path, "utf-8")
     const needsNewline = current.length > 0 && !current.endsWith("\n")
     appendFileSync(path, `${needsNewline ? "\n" : ""}${line}\n`)
-  }
+  })
+
   const lineCount = readFileSync(path, "utf-8").split(/\r?\n/).length - 1
   const memo = parseMemoLine(line, { filePath: path, lineNumber: lineCount, date: opts.today })
   if (!memo) throw new Error(`appended line failed to parse: ${line}`)
   return memo
 }
+
+// Exposed for unit testing the retry logic.
+export const _internal = { isRetryable, withRetrySync, MAX_RETRIES, RETRY_DELAY_MS }
