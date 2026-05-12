@@ -2,7 +2,7 @@
 
 Terminal UI for [Obsidian Thino](https://github.com/Quorafind/Obsidian-Thino) plugin.
 
-Built with **Bun + TypeScript + [OpenTUI](https://github.com/anomalyco/opentui) + [hascii-ui](https://github.com/shigurenimo/hascii-ui)**.
+Built with **Bun + TypeScript + [OpenTUI](https://github.com/anomalyco/opentui)**.
 
 ## Status
 
@@ -10,10 +10,10 @@ Built with **Bun + TypeScript + [OpenTUI](https://github.com/anomalyco/opentui) 
 
 - [x] Design spec ([`docs/superpowers/specs/2026-05-12-thino-tui-design.md`](docs/superpowers/specs/2026-05-12-thino-tui-design.md))
 - [x] Implementation plan ([`docs/superpowers/plans/2026-05-12-thino-tui-plan.md`](docs/superpowers/plans/2026-05-12-thino-tui-plan.md))
-- [x] Project scaffold (Bun + OpenTUI + hascii-ui)
-- [x] `lib/` layer + 15 unit tests (`bun test`)
-- [x] ListScreen
-- [x] ComposeScreen
+- [x] Project scaffold (Bun + OpenTUI)
+- [x] `lib/` layer + unit tests (`bun test`)
+- [x] HomeScreen (compose on top, recent memos below)
+- [x] Multi-line memos (Thino-style header + indented continuation)
 - [ ] Edit / delete / search (future iterations)
 
 ## Concept
@@ -41,16 +41,19 @@ bun run src/index.tsx --vault /path/to/vault --days 7
 
 ### Keys
 
-| Screen | Key | Action |
-|---|---|---|
-| List | `↑` / `↓` / `k` / `j` | Move selection |
-| List | `g` / `G` | Jump to top / bottom |
-| List | `n` | Open compose |
-| List | `r` | Reload memos |
-| List | `q` | Quit |
-| Compose | `Ctrl+S` | Submit |
-| Compose | `Tab` | Toggle "append as task" |
-| Compose | `Esc` | Cancel and return to list |
+The compose textarea is focused on launch. Recent memos render below it (read-only).
+
+| Key | Action |
+|---|---|
+| `Cmd+Enter` / `Ctrl+Enter` | Submit the memo |
+| `Enter` | Insert newline (multi-line memo) |
+| `Tab` | Toggle "append as task" |
+| `Ctrl+R` | Reload memos |
+| `Ctrl+Q` | Quit |
+
+In read-only mode (Thino mode ≠ DAILY, or `--read-only` flag), the textarea is hidden and `r` / `q` work as plain keys.
+
+> `Cmd+Enter` requires a terminal that reports the Cmd key as `super` via the Kitty keyboard protocol (Ghostty, WezTerm, iTerm2 with CSI u, etc.). `Ctrl+Enter` is the cross-terminal fallback.
 
 ## Architecture (MVP)
 
@@ -88,7 +91,6 @@ bun start          # alias for `bun run src/index.tsx`
 - [Thino plugin](https://github.com/Quorafind/Obsidian-Thino)
 - [`thn` CLI (Rust)](https://github.com/ignission/thn) — inspiration / data model reference
 - [OpenTUI](https://github.com/anomalyco/opentui) — TUI runtime
-- [hascii-ui](https://github.com/shigurenimo/hascii-ui) — OpenTUI component library
 
 ## License
 

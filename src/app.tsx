@@ -1,7 +1,6 @@
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext } from "react"
 import type { ThinoConfig } from "./lib/thino-config"
-import { ListScreen } from "./screens/list-screen"
-import { ComposeScreen } from "./screens/compose-screen"
+import { HomeScreen } from "./screens/home-screen"
 
 export type AppContextValue = {
   vaultPath: string
@@ -23,15 +22,10 @@ export function useApp(): AppContextValue {
   return v
 }
 
-export type Screen = "list" | "compose"
-
 export function App(props: AppContextValue) {
-  const [screen, setScreen] = useState<Screen>("list")
-  const value = props
   return (
-    <Ctx.Provider value={value}>
-      {screen === "list" && <ListScreen onCompose={() => setScreen("compose")} />}
-      {screen === "compose" && <ComposeScreen onDone={() => setScreen("list")} />}
+    <Ctx.Provider value={props}>
+      <HomeScreen />
     </Ctx.Provider>
   )
 }

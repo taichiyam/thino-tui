@@ -66,6 +66,74 @@ describe("appendMemo", () => {
     })
     expect(readFileSync(join(vault, "2026-05-13.md"), "utf-8")).toBe("- [ ] 07:00 やること\n")
   })
+
+  test("[正常] 複数行メモは Thino形式(ヘッダ+字下げ継続行) で保存される", () => {
+    const opts: MemoRepoOptions = { vaultPath: vault, today: "2026-05-12", days: 7 }
+    appendMemo("複数行は\nこう見える", { time: "12:55" }, opts)
+    expect(readFileSync(join(vault, "2026-05-12.md"), "utf-8")).toBe(
+      "- 12:55\n  複数行は\n  こう見える\n",
+    )
+  })
+
+  test("[正常] 複数行タスクも `- [ ] HH:MM` + 字下げ継続行 で保存される", () => {
+    const opts: MemoRepoOptions = { vaultPath: vault, today: "2026-05-12", days: 7 }
+    appendMemo("複数行の\nタスク", { time: "07:00", asTask: true }, opts)
+    expect(readFileSync(join(vault, "2026-05-12.md"), "utf-8")).toBe(
+      "- [ ] 07:00\n  複数行の\n  タスク\n",
+    )
+  })
+
+  test("[正常] 単一行と複数行が混在しても改行付きで連続追記できる", () => {
+    const opts: MemoRepoOptions = { vaultPath: vault, today: "2026-05-12", days: 7 }
+    appendMemo("単一行", { time: "10:00" }, opts)
+    appendMemo("複数\n行", { time: "11:00" }, opts)
+    appendMemo("また単一", { time: "12:00" }, opts)
+    expect(readFileSync(join(vault, "2026-05-12.md"), "utf-8")).toBe(
+      "- 10:00 単一行\n- 11:00\n  複数\n  行\n- 12:00 また単一\n",
+    )
+  })
+
+  test("[正常] 書き込んだ複数行メモを listMemos で読み戻すと text に \\n が保たれる", () => {
+    const opts: MemoRepoOptions = { vaultPath: vault, today: "2026-05-12", days: 7 }
+    appendMemo("複数行は\nこう見える", { time: "12:55" }, opts)
+    const memos = listMemos(opts)
+    expect(memos).toHaveLength(1)
+    expect(memos[0]?.text).toBe("複数行は\nこう見える")
+    expect(memos[0]?.time).toBe("12:55")
+  })
+})
+
+describe("listMemos の複数行対応", () => {
+  let vault: string
+  beforeEach(() => {
+    vault = makeTempVault()
+  })
+  afterEach(() => {
+    rmSync(vault, { recursive: true, force: true })
+  })
+
+  test("[正常] ヘッダ行+字下げ継続行 を 1つの Memo として組み立てる", () => {
+    writeFileSync(
+      join(vault, "2026-05-12.md"),
+      "- 12:55\n  複数行は\n  こう見える\n- 13:00 後続の単一行\n",
+    )
+    const memos = listMemos({ vaultPath: vault, today: "2026-05-12", days: 1 })
+    expect(memos).toHaveLength(2)
+    expect(memos[0]?.time).toBe("13:00")
+    expect(memos[0]?.text).toBe("後続の単一行")
+    expect(memos[1]?.time).toBe("12:55")
+    expect(memos[1]?.text).toBe("複数行は\nこう見える")
+  })
+
+  test("[正常] 空行が間に挟まると複数行メモは終端する", () => {
+    writeFileSync(
+      join(vault, "2026-05-12.md"),
+      "- 12:55\n  本文1\n\n  本文2\n",
+    )
+    const memos = listMemos({ vaultPath: vault, today: "2026-05-12", days: 1 })
+    expect(memos).toHaveLength(1)
+    expect(memos[0]?.text).toBe("本文1")
+  })
 })
 
 describe("withRetrySync (iCloud lock retry)", () => {

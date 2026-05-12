@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { readDailyNotesConfig, type DailyNotesConfig } from "./daily-notes-config"
-import { parseMemoLine, type Memo } from "./memo"
+import { parseMemoLine, parseContinuation, formatMemoBlock, type Memo } from "./memo"
 
 export type MemoRepoOptions = {
   vaultPath: string
@@ -14,8 +14,6 @@ export type AppendOptions = {
   asTask?: boolean
 }
 
-// File-system error codes that warrant a retry on iCloud Drive,
-// where the sync agent can briefly hold the file open.
 const RETRYABLE_CODES = new Set(["EBUSY", "EAGAIN", "EACCES", "EPERM"])
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 200
@@ -52,6 +50,51 @@ function dailyNotePath(vaultPath: string, date: string, cfg: DailyNotesConfig): 
   return join(folder, `${date}.md`)
 }
 
+function countLines(content: string): number {
+  if (content === "") return 0
+  const newlines = (content.match(/\r?\n/g) ?? []).length
+  return content.endsWith("\n") ? newlines : newlines + 1
+}
+
+function collectMemos(lines: string[], filePath: string, date: string): Memo[] {
+  const memos: Memo[] = []
+  let header: Memo | null = null
+  let bodyLines: string[] = []
+
+  const finalize = () => {
+    if (!header) return
+    if (bodyLines.length > 0) {
+      const combined = header.text
+        ? [header.text, ...bodyLines].join("\n")
+        : bodyLines.join("\n")
+      memos.push({ ...header, text: combined })
+    } else {
+      memos.push(header)
+    }
+    header = null
+    bodyLines = []
+  }
+
+  lines.forEach((line, idx) => {
+    const m = parseMemoLine(line, { filePath, lineNumber: idx + 1, date })
+    if (m) {
+      finalize()
+      header = m
+      return
+    }
+    if (header) {
+      const cont = parseContinuation(line)
+      if (cont !== null) {
+        bodyLines.push(cont)
+        return
+      }
+      finalize()
+    }
+  })
+  finalize()
+  return memos
+}
+
 export function listMemos(opts: MemoRepoOptions): Memo[] {
   const cfg = readDailyNotesConfig(opts.vaultPath)
   const memos: Memo[] = []
@@ -60,10 +103,7 @@ export function listMemos(opts: MemoRepoOptions): Memo[] {
     const path = dailyNotePath(opts.vaultPath, date, cfg)
     if (!existsSync(path)) continue
     const lines = readFileSync(path, "utf-8").split(/\r?\n/)
-    lines.forEach((line, idx) => {
-      const m = parseMemoLine(line, { filePath: path, lineNumber: idx + 1, date })
-      if (m) memos.push(m)
-    })
+    memos.push(...collectMemos(lines, path, date))
   }
   memos.sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? 1 : -1
@@ -75,25 +115,32 @@ export function listMemos(opts: MemoRepoOptions): Memo[] {
 export function appendMemo(text: string, append: AppendOptions, opts: MemoRepoOptions): Memo {
   const cfg = readDailyNotesConfig(opts.vaultPath)
   const path = dailyNotePath(opts.vaultPath, opts.today, cfg)
-  const prefix = append.asTask ? `- [ ] ${append.time} ` : `- ${append.time} `
-  const line = `${prefix}${text}`
+  const asTask = append.asTask ?? false
+  const block = formatMemoBlock(text, append.time, asTask)
 
+  let headerLineNumber = 1
   withRetrySync(() => {
     mkdirSync(dirname(path), { recursive: true })
     if (!existsSync(path)) {
-      writeFileSync(path, `${line}\n`)
+      writeFileSync(path, `${block}\n`)
+      headerLineNumber = 1
       return
     }
     const current = readFileSync(path, "utf-8")
     const needsNewline = current.length > 0 && !current.endsWith("\n")
-    appendFileSync(path, `${needsNewline ? "\n" : ""}${line}\n`)
+    appendFileSync(path, `${needsNewline ? "\n" : ""}${block}\n`)
+    headerLineNumber = countLines(current) + 1
   })
 
-  const lineCount = readFileSync(path, "utf-8").split(/\r?\n/).length - 1
-  const memo = parseMemoLine(line, { filePath: path, lineNumber: lineCount, date: opts.today })
-  if (!memo) throw new Error(`appended line failed to parse: ${line}`)
-  return memo
+  return {
+    id: `${path}#L${headerLineNumber}`,
+    time: append.time,
+    date: opts.today,
+    text,
+    filePath: path,
+    lineNumber: headerLineNumber,
+    isTask: asTask,
+  }
 }
 
-// Exposed for unit testing the retry logic.
 export const _internal = { isRetryable, withRetrySync, MAX_RETRIES, RETRY_DELAY_MS }

@@ -1,3 +1,7 @@
 export function DateHeader({ date }: { date: string }) {
-  return <text>{date}</text>
+  return (
+    <box style={{ height: 1 }}>
+      <text>{date}</text>
+    </box>
+  )
 }
