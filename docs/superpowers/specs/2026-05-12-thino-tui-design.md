@@ -30,7 +30,12 @@ MVP scope is intentionally narrow: **list recent memos + append a new memo**. Ed
 | Test runner | `bun test` |
 | Scaffold | `bun init` + `bun add @opentui/core @opentui/react react` |
 
-> **Note (revised 2026-05-12):** [hascii-ui](https://github.com/shigurenimo/hascii-ui) was initially listed as the UI component library, but the MVP turned out not to need any of its components (the screens are composed directly from OpenTUI primitives). The dependency has been dropped per YAGNI. Re-introduce it in a later iteration if richer components (badges, focus groups) become necessary.
+> **Note (revised 2026-05-12, issue #2 decision):**
+> [hascii-ui](https://ui.hascii.sh/) is a shadcn-registry-style component set for OpenTUI. It was initially dropped per YAGNI when the MVP screens turned out to need only OpenTUI primitives.
+>
+> Re-introduction is **partial**: the `Button` component will be adopted to back the mouse-clickable Submit / Cancel controls in the compose area (driven by issue #3 — mouse support). The `Badge` component is **deferred**: the current `READ-ONLY` / `[x] append as task` / inline error indicators work fine as plain `<text>`, and Badge can be added later via `bunx shadcn add @hascii/badge` with no migration cost.
+>
+> Because `@hascii/ui` is distributed as a shadcn registry, adopting Button copies the component source into the repo rather than adding a runtime dependency; see §11.
 
 ## 4. Architecture
 
@@ -138,6 +143,7 @@ MVP has only these two screens. Errors are surfaced via an inline banner / toast
 │  │ Body input area (multi-line)                      │ │
 │  └───────────────────────────────────────────────────┘ │
 │   [ ] Append as task ( -[ ] form )                     │
+│                                  [ Submit ] [ Cancel ] │
 ├─────────────────────────────────────────────────────────┤
 │   Ctrl+S: submit   Esc: cancel   Tab: toggle task       │
 └─────────────────────────────────────────────────────────┘
@@ -145,6 +151,7 @@ MVP has only these two screens. Errors are surfaced via an inline banner / toast
 
 - The textarea has primary focus; `Tab` toggles the "append as task" flag (focus cycling between widgets is deferred).
 - Header timestamp is for display only; the actual submit time is recomputed on submit.
+- `Submit` / `Cancel` are rendered via `@hascii/ui` `Button` (issue #2 decision) and wired through `onPress` to the same handlers as `Ctrl+S` / `Esc`. Implementation is tracked under issue #3 (mouse support).
 
 ### Keybindings (MVP)
 
@@ -262,6 +269,10 @@ thino-tui/
 ```
 
 Versions above reflect what was actually pinned at scaffold time (`bun add @opentui/core @opentui/react react`).
+
+### Vendored components (shadcn-registry)
+
+`@hascii/ui` `Button` is added via `bunx shadcn add @hascii/button` (or `bunx shadcn@latest add @hascii/button`). This copies the component source under the project (e.g. `src/components/ui/button.tsx`) rather than installing a runtime dependency, so `package.json` `dependencies` remain unchanged. Updating the component means re-running the `add` command.
 
 ## 12. Open Questions
 
