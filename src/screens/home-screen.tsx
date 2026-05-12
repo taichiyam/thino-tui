@@ -8,6 +8,7 @@ import { MemoRow } from "../components/memo-row"
 import { DateHeader } from "../components/date-header"
 import { StatusBar } from "../components/status-bar"
 import { HasciiButton } from "../components/hascii/button"
+import { HasciiCheckbox } from "../components/hascii/checkbox"
 
 const SUBMIT_KEY_BINDINGS = [
   { name: "return", super: true, action: "submit" as const },
@@ -98,8 +99,8 @@ export function HomeScreen() {
             />
           </box>
           <box style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <box style={{ flexDirection: "row" }}>
-              <text>{`[${asTask ? "x" : " "}] append as task`}</text>
+            <box style={{ flexDirection: "row", alignItems: "center" }}>
+              <HasciiCheckbox isChecked={asTask} onChange={setAsTask}>append as task</HasciiCheckbox>
               {error && <text>{`   error: ${error}`}</text>}
             </box>
             <box style={{ flexDirection: "row", marginLeft: 1 }}>
