@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react"
+import { createContext, useContext, useState } from "react"
 import type { ThinoConfig } from "./lib/thino-config"
 import { ListScreen } from "./screens/list-screen"
 import { ComposeScreen } from "./screens/compose-screen"
@@ -10,6 +10,9 @@ export type AppContextValue = {
   readOnly: boolean
   today: () => string
   nowHHMM: () => string
+  // Called when the user explicitly quits. Implementation is provided by index.tsx
+  // and is responsible for tearing down the OpenTUI renderer before exiting the process.
+  requestExit: () => void
 }
 
 const Ctx = createContext<AppContextValue | null>(null)
@@ -24,7 +27,7 @@ export type Screen = "list" | "compose"
 
 export function App(props: AppContextValue) {
   const [screen, setScreen] = useState<Screen>("list")
-  const value = useMemo(() => props, [props])
+  const value = props
   return (
     <Ctx.Provider value={value}>
       {screen === "list" && <ListScreen onCompose={() => setScreen("compose")} />}

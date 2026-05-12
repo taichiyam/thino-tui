@@ -75,7 +75,7 @@ async function main() {
   const thinoConfig = readThinoConfig(vaultPath)
   const readOnly = args.readOnly || thinoConfig.mode !== "DAILY"
 
-  const ctx: AppContextValue = {
+  const ctx: Omit<AppContextValue, "requestExit"> = {
     vaultPath,
     thinoConfig,
     days: args.days && Number.isFinite(args.days) ? args.days : 7,
@@ -85,7 +85,13 @@ async function main() {
   }
 
   const renderer = await createCliRenderer()
-  createRoot(renderer).render(<App {...ctx} />)
+
+  const requestExit = () => {
+    renderer.destroy()
+    process.exit(0)
+  }
+
+  createRoot(renderer).render(<App {...ctx} requestExit={requestExit} />)
 }
 
 main()

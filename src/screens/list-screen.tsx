@@ -35,7 +35,7 @@ export function ListScreen({ onCompose }: { onCompose: () => void }) {
     } else if (key.name === "n" && !app.readOnly) {
       onCompose()
     } else if (key.name === "q") {
-      process.exit(0)
+      app.requestExit()
     }
   })
 
