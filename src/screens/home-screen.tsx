@@ -98,15 +98,29 @@ export function HomeScreen() {
               onSubmit={submit}
             />
           </box>
-          <box style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <box style={{ flexDirection: "row", alignItems: "center" }}>
+          <box
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: 1,
+            }}
+          >
+            <box style={{ flexDirection: "row", alignItems: "center", flexShrink: 1 }}>
               <HasciiCheckbox isChecked={asTask} onChange={setAsTask}>append as task</HasciiCheckbox>
               {error && <text>{`   error: ${error}`}</text>}
             </box>
-            <box style={{ flexDirection: "row", marginLeft: 1 }}>
+            <box
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginLeft: 1,
+                flexShrink: 0,
+              }}
+            >
               <HasciiButton size="sm" onPress={submit}>Submit</HasciiButton>
               <box style={{ marginLeft: 1 }}>
-                <HasciiButton size="sm" variant="outline" onPress={clear}>Clear</HasciiButton>
+                <HasciiButton size="sm" variant="secondary" onPress={clear}>Clear</HasciiButton>
               </box>
             </box>
           </box>
