@@ -1,8 +1,10 @@
 import type { TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
-import { useMemo, useRef, useState } from "react"
-import { appendMemo, listMemos } from "../lib/memo-repository"
+import { statSync } from "node:fs"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { appendMemo, listDailyNotePaths, listMemos } from "../lib/memo-repository"
 import type { Memo } from "../lib/memo"
+import { writeAppConfig } from "../lib/config"
 import { useApp } from "../app"
 import { MemoRow } from "../components/memo-row"
 import { MemoCard } from "../components/memo-card"
@@ -16,6 +18,37 @@ const SUBMIT_KEY_BINDINGS = [
   { name: "return", ctrl: true, action: "submit" as const },
 ]
 
+const INTERVAL_CYCLE = [60, 30, 120, "off"] as const
+type IntervalOption = typeof INTERVAL_CYCLE[number]
+
+function nextInterval(current: IntervalOption): IntervalOption {
+  const idx = INTERVAL_CYCLE.indexOf(current)
+  return INTERVAL_CYCLE[(idx + 1) % INTERVAL_CYCLE.length]!
+}
+
+function intervalLabel(v: IntervalOption): string {
+  return v === "off" ? "off" : `${v}s`
+}
+
+function getMtimes(paths: string[]): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const p of paths) {
+    try { m.set(p, statSync(p).mtimeMs) } catch { /* file may not exist yet */ }
+  }
+  return m
+}
+
+function hasMtimeChanged(paths: string[], prev: Map<string, number>): boolean {
+  for (const p of paths) {
+    try {
+      if (statSync(p).mtimeMs !== (prev.get(p) ?? -1)) return true
+    } catch {
+      if (prev.has(p)) return true
+    }
+  }
+  return false
+}
+
 export function HomeScreen() {
   const app = useApp()
   const textareaRef = useRef<TextareaRenderable>(null)
@@ -23,11 +56,50 @@ export function HomeScreen() {
   const [error, setError] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
   const [viewMode, setViewMode] = useState<"line" | "card">("line")
+  const [reloadInterval, setReloadIntervalState] = useState<IntervalOption>(() => {
+    const v = app.reloadInterval
+    if (v === "off") return "off"
+    const n = Number(v)
+    return (Number.isFinite(n) && INTERVAL_CYCLE.includes(n as IntervalOption))
+      ? (n as IntervalOption)
+      : 60
+  })
+  const [reloadedAt, setReloadedAt] = useState<string | null>(null)
+
+  // Track file mtimes to avoid unnecessary re-parses on auto-reload
+  const lastMtimesRef = useRef<Map<string, number>>(new Map())
 
   const memos = useMemo(
     () => listMemos({ vaultPath: app.vaultPath, today: app.today(), days: app.days }),
     [app, refreshTick],
   )
+
+  // Initialise mtime cache after first load
+  useEffect(() => {
+    const paths = listDailyNotePaths({ vaultPath: app.vaultPath, today: app.today(), days: app.days })
+    lastMtimesRef.current = getMtimes(paths)
+  }, [app])
+
+  // Auto-reload: silent background poll
+  useEffect(() => {
+    if (reloadInterval === "off") return
+    const ms = reloadInterval * 1000
+    const id = setInterval(() => {
+      const paths = listDailyNotePaths({ vaultPath: app.vaultPath, today: app.today(), days: app.days })
+      if (!hasMtimeChanged(paths, lastMtimesRef.current)) return
+      lastMtimesRef.current = getMtimes(paths)
+      setRefreshTick((t) => t + 1)
+      // No UI feedback for auto-reload — intentionally silent
+    }, ms)
+    return () => clearInterval(id)
+  }, [reloadInterval, app])
+
+  // Clear "Reloaded at HH:MM" feedback after 3 seconds
+  useEffect(() => {
+    if (!reloadedAt) return
+    const id = setTimeout(() => setReloadedAt(null), 3000)
+    return () => clearTimeout(id)
+  }, [reloadedAt])
 
   const groups = useMemo(() => {
     const g: Record<string, Memo[]> = {}
@@ -66,6 +138,19 @@ export function HomeScreen() {
 
   const toggleView = () => setViewMode((m) => (m === "line" ? "card" : "line"))
 
+  const manualReload = () => {
+    const paths = listDailyNotePaths({ vaultPath: app.vaultPath, today: app.today(), days: app.days })
+    lastMtimesRef.current = getMtimes(paths)
+    setRefreshTick((t) => t + 1)
+    setReloadedAt(app.nowHHMM())
+  }
+
+  const cycleInterval = () => {
+    const next = nextInterval(reloadInterval)
+    setReloadIntervalState(next)
+    writeAppConfig({ reloadInterval: next })
+  }
+
   useKeyboard((key) => {
     // Ctrl+C is reserved by the terminal/runtime for SIGINT, so use Ctrl+V for the view toggle.
     if (key.ctrl && key.name === "v") {
@@ -74,7 +159,8 @@ export function HomeScreen() {
     }
     if (app.readOnly) {
       if (key.ctrl || key.meta) return
-      if (key.name === "r") setRefreshTick((t) => t + 1)
+      if (key.name === "R" || (key.shift && key.name === "r")) cycleInterval()
+      else if (key.name === "r") manualReload()
       else if (key.name === "q") app.requestExit()
       else if (key.name === "c") toggleView()
       return
@@ -84,12 +170,16 @@ export function HomeScreen() {
       return
     }
     if (key.ctrl && key.name === "q") app.requestExit()
-    else if (key.ctrl && key.name === "r") setRefreshTick((t) => t + 1)
+    else if (key.ctrl && key.name === "r") manualReload()
+    else if (key.name === "R" || (key.shift && key.name === "r")) cycleInterval()
   })
 
+  const intervalInfo = `[${intervalLabel(reloadInterval)}]`
+  const reloadFeedback = reloadedAt ? `  ✓ Reloaded ${reloadedAt}` : ""
+
   const hint = app.readOnly
-    ? `READ-ONLY: ${app.thinoConfig.mode}  r: refresh  c/Ctrl+V: toggle view  q: quit`
-    : "Cmd+Enter / Ctrl+Enter: submit  Tab: toggle task  Ctrl+V: toggle view  Ctrl+R: reload  Ctrl+Q: quit"
+    ? `READ-ONLY: ${app.thinoConfig.mode}  r: refresh  c/Ctrl+V: toggle view  R: interval${intervalInfo}  q: quit${reloadFeedback}`
+    : `Cmd/Ctrl+Enter: submit  Tab: toggle task  Ctrl+V: toggle view  R: interval${intervalInfo}  Ctrl+R: reload  Ctrl+Q: quit${reloadFeedback}`
 
   return (
     <box style={{ flexDirection: "column", padding: 1, flexGrow: 1 }}>

@@ -3,6 +3,7 @@ import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import { resolveVaultPath } from "./lib/obsidian-config"
 import { readThinoConfig } from "./lib/thino-config"
+import { readAppConfig } from "./lib/config"
 import { App, type AppContextValue } from "./app"
 
 type CliArgs = {
@@ -11,6 +12,7 @@ type CliArgs = {
   readOnly: boolean
   resetVault: boolean
   help: boolean
+  reloadInterval?: number | "off"
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -28,6 +30,13 @@ function parseArgs(argv: string[]): CliArgs {
       args.readOnly = true
     } else if (a === "--reset-vault") {
       args.resetVault = true
+    } else if (a === "--reload-interval") {
+      i++
+      const v = argv[i]
+      if (v) {
+        const n = Number(v)
+        args.reloadInterval = n === 0 ? "off" : Number.isFinite(n) && n > 0 ? n : undefined
+      }
     } else if (a === "--help" || a === "-h") {
       args.help = true
     }
@@ -39,17 +48,19 @@ function printHelp() {
   console.log(`thino-tui — Obsidian Thino memos in your terminal
 
 USAGE:
-  thino-tui [--vault PATH] [--days N] [--read-only] [--reset-vault]
+  thino-tui [--vault PATH] [--days N] [--read-only] [--reset-vault] [--reload-interval N]
 
 OPTIONS:
-  --vault PATH    Path to the Obsidian vault. If omitted, auto-detected from
-                  Obsidian's own vault list (no setup needed once you have
-                  opened a vault in Obsidian). Falls back to $OBSIDIAN_VAULT.
-  --days N        How many past days to list (default: 7)
-  --read-only     Disable compose
-  --reset-vault   Forget the cached vault choice and ask again (only relevant
-                  when multiple vaults exist and none / many are open).
-  -h, --help      Show this help
+  --vault PATH         Path to the Obsidian vault. If omitted, auto-detected from
+                       Obsidian's own vault list (no setup needed once you have
+                       opened a vault in Obsidian). Falls back to $OBSIDIAN_VAULT.
+  --days N             How many past days to list (default: 7)
+  --read-only          Disable compose
+  --reset-vault        Forget the cached vault choice and ask again (only relevant
+                       when multiple vaults exist and none / many are open).
+  --reload-interval N  Auto-reload interval in seconds (0 to disable). Overrides
+                       the persisted setting in config.toml for this session only.
+  -h, --help           Show this help
 `)
 }
 
@@ -83,6 +94,10 @@ async function main() {
   const thinoConfig = readThinoConfig(vaultPath)
   const readOnly = args.readOnly || thinoConfig.mode !== "DAILY"
 
+  // CLI flag overrides persisted config (temporary override — not written to config.toml)
+  const appConfig = readAppConfig()
+  const reloadInterval = args.reloadInterval !== undefined ? args.reloadInterval : appConfig.reloadInterval
+
   const ctx: Omit<AppContextValue, "requestExit"> = {
     vaultPath,
     thinoConfig,
@@ -90,6 +105,7 @@ async function main() {
     readOnly,
     today: todayJST,
     nowHHMM: nowJSTHHMM,
+    reloadInterval,
   }
 
   const renderer = await createCliRenderer()
