@@ -16,95 +16,143 @@ function makeCtx(overrides: Partial<AppContextValue> = {}): AppContextValue {
   }
 }
 
-test("[正常] read-only起動時は行スタイルで表示され、cキー押下でカード型に切り替わる", async () => {
-  const { mockInput, captureCharFrame, renderOnce } = await testRender(<App {...makeCtx()} />, {
-    width: 80,
-    height: 24,
-  })
+async function renderApp(overrides?: Partial<AppContextValue>) {
+  return testRender(<App {...makeCtx(overrides)} />, { width: 80, height: 40 })
+}
 
-  await renderOnce()
-  const initialFrame = captureCharFrame()
+type MockInput = Awaited<ReturnType<typeof renderApp>>["mockInput"]
 
-  // 初期表示は行スタイル — 上下ボーダーの罫線文字 (─) はメモ行には現れない
-  expect(initialFrame).toContain("11:24")
-  expect(initialFrame).toContain("はてなCMS")
-  expect(initialFrame).toContain("c/Ctrl+V: toggle view")
-
-  const linesOnlyMemos = initialFrame
-    .split("\n")
-    .filter((l) => l.includes("11:24") || l.includes("10:11"))
-  for (const l of linesOnlyMemos) {
-    expect(l.includes("─")).toBe(false)
-  }
-
+async function pressKey(
+  mockInput: MockInput,
+  key: string,
+  modifiers?: { ctrl?: boolean; meta?: boolean; shift?: boolean },
+) {
   await act(async () => {
-    await mockInput.pressKey("c")
+    await mockInput.pressKey(key, modifiers)
   })
+}
+
+function findRow(frame: string, needle: string): string | undefined {
+  return frame.split("\n").find((l) => l.includes(needle))
+}
+
+function countRowsWith(frame: string, needle: string): number {
+  return frame.split("\n").filter((l) => l.includes(needle)).length
+}
+
+test("[正常] read-only時に初期表示が行スタイルで描画されること", async () => {
+  const { captureCharFrame, renderOnce } = await renderApp()
   await renderOnce()
-
-  const cardFrame = captureCharFrame()
-  // カード型では各メモが上下ボーダーで囲まれる
-  expect(cardFrame).toContain("─")
-  expect(cardFrame).toContain("11:24")
-  expect(cardFrame).toContain("はてなCMS")
-
-  // 再度押すと行スタイルに戻る
-  await act(async () => {
-    await mockInput.pressKey("c")
-  })
-  await renderOnce()
-  const back = captureCharFrame()
-  const backMemoLines = back
-    .split("\n")
-    .filter((l) => l.includes("11:24") || l.includes("10:11"))
-  for (const l of backMemoLines) {
-    expect(l.includes("─")).toBe(false)
-  }
-})
-
-test("[正常] 書き込みモードでCtrl+V押下でカード型に切り替わる", async () => {
-  const { mockInput, captureCharFrame, renderOnce } = await testRender(
-    <App {...makeCtx({ readOnly: false })} />,
-    { width: 80, height: 30 },
-  )
-
-  await renderOnce()
-  const initialFrame = captureCharFrame()
-  expect(initialFrame).toContain("Ctrl+V: toggle view")
-
-  // 書き込みモードのメモ行は textarea より下に描画される
-  const memoLines = initialFrame
-    .split("\n")
-    .filter((l) => l.includes("11:24") || l.includes("10:11"))
-  for (const l of memoLines) {
-    expect(l.includes("─")).toBe(false)
-  }
-
-  await act(async () => {
-    await mockInput.pressKey("v", { ctrl: true })
-  })
-  await renderOnce()
-
-  const cardFrame = captureCharFrame()
-  // カード型に切り替わると上下ボーダーが描画される
-  expect(cardFrame).toContain("─")
-  expect(cardFrame).toContain("11:24")
-})
-
-test("[正常] カード型ではisTaskメモのチェックボックスが時刻横に表示される", async () => {
-  const { mockInput, captureCharFrame, renderOnce } = await testRender(<App {...makeCtx()} />, {
-    width: 80,
-    height: 24,
-  })
-
-  await act(async () => {
-    await mockInput.pressKey("c")
-  })
-  await renderOnce()
-
   const frame = captureCharFrame()
-  const taskLine = frame.split("\n").find((l) => l.includes("11:24"))
-  expect(taskLine).toBeDefined()
-  // ballotタイプのチェックボックス文字 ☐ がタスク時刻行に現れる
-  expect(taskLine ?? "").toContain("☐")
+
+  expect(findRow(frame, "10:11")).toContain("ゆいレールのポストモーテム保存")
+  expect(frame).toContain("c/Ctrl+V: toggle view")
+  expect(frame).not.toContain("Cmd+Enter")
+  expect(countRowsWith(frame, "─")).toBe(0)
+})
+
+test("[正常] read-only時にcキー押下でカード型へ切り替わること", async () => {
+  const { mockInput, captureCharFrame, renderOnce } = await renderApp()
+  await renderOnce()
+  await pressKey(mockInput, "c")
+  await renderOnce()
+  const frame = captureCharFrame()
+
+  expect(findRow(frame, "10:11")).not.toContain("ゆいレールのポストモーテム保存")
+  expect(findRow(frame, "ゆいレールのポストモーテム保存")).toBeDefined()
+  expect(countRowsWith(frame, "─")).toBeGreaterThanOrEqual(8)
+})
+
+test("[正常] カード型でcキー再押下時に行スタイルへ戻ること", async () => {
+  const { mockInput, captureCharFrame, renderOnce } = await renderApp()
+  await renderOnce()
+  await pressKey(mockInput, "c")
+  await renderOnce()
+  await pressKey(mockInput, "c")
+  await renderOnce()
+  const frame = captureCharFrame()
+
+  expect(findRow(frame, "10:11")).toContain("ゆいレールのポストモーテム保存")
+  expect(countRowsWith(frame, "─")).toBe(0)
+})
+
+test("[正常] read-only時にCtrl+C押下では表示モードが切り替わらないこと", async () => {
+  const { mockInput, captureCharFrame, renderOnce } = await renderApp()
+  await renderOnce()
+  await pressKey(mockInput, "c", { ctrl: true })
+  await renderOnce()
+  const frame = captureCharFrame()
+
+  expect(findRow(frame, "10:11")).toContain("ゆいレールのポストモーテム保存")
+  expect(countRowsWith(frame, "─")).toBe(0)
+})
+
+test("[正常] 書き込みモードの初期表示が行スタイルでCtrl+V案内が出ること", async () => {
+  const { captureCharFrame, renderOnce } = await renderApp({ readOnly: false })
+  await renderOnce()
+  const frame = captureCharFrame()
+
+  expect(frame).toContain("Ctrl+V: toggle view")
+  expect(frame).not.toContain("READ-ONLY: DAILY")
+  expect(findRow(frame, "10:11")).toContain("ゆいレールのポストモーテム保存")
+})
+
+test("[正常] 書き込みモードでCtrl+V押下でカード型へ切り替わること", async () => {
+  const { mockInput, captureCharFrame, renderOnce } = await renderApp({ readOnly: false })
+  await renderOnce()
+  await pressKey(mockInput, "v", { ctrl: true })
+  await renderOnce()
+  const frame = captureCharFrame()
+
+  expect(findRow(frame, "10:11")).not.toContain("ゆいレールのポストモーテム保存")
+  expect(findRow(frame, "ゆいレールのポストモーテム保存")).toBeDefined()
+})
+
+test("[正常] 書き込みモードでcキー単独押下では表示モードが切り替わらないこと", async () => {
+  const { mockInput, captureCharFrame, renderOnce } = await renderApp({ readOnly: false })
+  await renderOnce()
+  await pressKey(mockInput, "c")
+  await renderOnce()
+  const frame = captureCharFrame()
+
+  expect(findRow(frame, "10:11")).toContain("ゆいレールのポストモーテム保存")
+})
+
+test("[正常] カード型でisTaskメモの時刻行にチェックボックスが表示されること", async () => {
+  const { mockInput, captureCharFrame, renderOnce } = await renderApp()
+  await renderOnce()
+  await pressKey(mockInput, "c")
+  await renderOnce()
+  const frame = captureCharFrame()
+
+  expect(findRow(frame, "11:24")).toContain("☐")
+})
+
+test("[正常] カード型で非タスクメモの時刻行にはチェックボックスが表示されないこと", async () => {
+  const { mockInput, captureCharFrame, renderOnce } = await renderApp()
+  await renderOnce()
+  await pressKey(mockInput, "c")
+  await renderOnce()
+  const frame = captureCharFrame()
+
+  expect(findRow(frame, "10:11")).not.toContain("☐")
+})
+
+test("[正常] カード型で複数行メモの全本文行がそれぞれ独立した行に描画されること", async () => {
+  const { mockInput, captureCharFrame, renderOnce } = await renderApp()
+  await renderOnce()
+  await pressKey(mockInput, "c")
+  await renderOnce()
+  const frame = captureCharFrame()
+
+  const firstRow = findRow(frame, "一行目の本文")
+  const secondRow = findRow(frame, "二行目の本文")
+  const thirdRow = findRow(frame, "三行目の本文")
+
+  expect(firstRow).toBeDefined()
+  expect(secondRow).toBeDefined()
+  expect(thirdRow).toBeDefined()
+  expect(firstRow).not.toBe(secondRow)
+  expect(secondRow).not.toBe(thirdRow)
+  expect(findRow(frame, "08:00")).not.toContain("一行目の本文")
 })

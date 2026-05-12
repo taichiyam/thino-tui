@@ -67,12 +67,13 @@ export function HomeScreen() {
   const toggleView = () => setViewMode((m) => (m === "line" ? "card" : "line"))
 
   useKeyboard((key) => {
-    // Ctrl+V toggles the view in both modes; avoids Ctrl+C which would interrupt the process.
+    // Ctrl+C is reserved by the terminal/runtime for SIGINT, so use Ctrl+V for the view toggle.
     if (key.ctrl && key.name === "v") {
       toggleView()
       return
     }
     if (app.readOnly) {
+      if (key.ctrl || key.meta) return
       if (key.name === "r") setRefreshTick((t) => t + 1)
       else if (key.name === "q") app.requestExit()
       else if (key.name === "c") toggleView()

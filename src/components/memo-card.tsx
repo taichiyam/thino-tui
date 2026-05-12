@@ -2,13 +2,15 @@ import type { Memo } from "../lib/memo"
 import { HasciiCheckbox } from "./hascii/checkbox"
 import { useHasciiTheme } from "./hascii/theme-context"
 
+const HEADER_ROWS = 1
+const BORDER_ROWS = 2
+
 export function MemoCard({ memo, selected }: { memo: Memo; selected: boolean }) {
   const theme = useHasciiTheme()
   const marker = selected ? "▌" : " "
-  const lines = memo.text.split("\n")
+  const lines = memo.text.split(/\r?\n/)
   const borderColor = selected ? theme.color.primary : theme.color.border
-  // 1 header row + N body rows, surrounded by top+bottom borders (each 1 row).
-  const cardHeight = 1 + lines.length + 2
+  const cardHeight = HEADER_ROWS + lines.length + BORDER_ROWS
 
   return (
     <box

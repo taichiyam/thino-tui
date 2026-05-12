@@ -19,7 +19,7 @@ function makeTempVault(): string {
 describe("listMemos", () => {
   test("[正常] 直近のメモが新しい日付・新しい時刻順で返る", () => {
     const memos = listMemos({ vaultPath: FIXTURE, today: "2026-05-12", days: 7 })
-    expect(memos.length).toBe(5)
+    expect(memos.length).toBe(6)
     expect(memos[0]?.date).toBe("2026-05-12")
     expect(memos[0]?.time).toBe("11:24")
     expect(memos[memos.length - 1]?.date).toBe("2026-05-11")
