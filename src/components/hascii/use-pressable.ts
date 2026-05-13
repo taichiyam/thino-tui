@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 
 export type Bindings = {
   onMouseOver: () => void
@@ -23,13 +23,12 @@ export function usePressable(options?: Options): PressableState {
   const isDisabled = options?.isDisabled ?? false
   const onPress = options?.onPress
 
-  const hoveredState = useState(false)
-  const isHovered = hoveredState[0]
-  const setHovered = hoveredState[1]
+  const [isHovered, setHovered] = useState(false)
+  const [isPressed, setPressed] = useState(false)
 
-  const pressedState = useState(false)
-  const isPressed = pressedState[0]
-  const setPressed = pressedState[1]
+  // mousedown と mouseup が同じイベントループで処理されると state 更新が
+  // 間に合わず isPressed の closure が古くて onPress が呼ばれない問題を回避。
+  const pressedRef = useRef(false)
 
   const bind: Bindings = {
     onMouseOver: () => {
@@ -37,15 +36,18 @@ export function usePressable(options?: Options): PressableState {
     },
     onMouseOut: () => {
       setHovered(false)
+      pressedRef.current = false
       setPressed(false)
     },
     onMouseDown: () => {
-      if (!isDisabled) setPressed(true)
+      if (isDisabled) return
+      pressedRef.current = true
+      setPressed(true)
     },
     onMouseUp: () => {
       if (isDisabled) return
-
-      if (isPressed) onPress?.()
+      if (pressedRef.current) onPress?.()
+      pressedRef.current = false
       setPressed(false)
     },
   }
