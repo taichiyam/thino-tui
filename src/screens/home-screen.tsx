@@ -161,6 +161,8 @@ export function HomeScreen() {
           justifyContent: "space-between",
           alignItems: "center",
           marginTop: 1,
+          height: 1,
+          flexShrink: 0,
         }}
       >
         <box style={{ flexDirection: "row", alignItems: "center", flexShrink: 1 }}>
