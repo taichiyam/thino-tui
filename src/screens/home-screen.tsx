@@ -100,18 +100,11 @@ export function HomeScreen() {
 
   // scrollbox はフォーカス不可にして textarea からフォーカスを奪わないようにする。
   // OpenTUI のデフォルトでは scrollbox がマウス操作で focus を取りに行ってしまうため。
-  // また、コンテンツが viewport に収まる場合は scrollbar を非表示にして
-  // 「中段に thumb が浮いてる」見栄え問題を回避する。
   useEffect(() => {
     const sb = scrollBoxRef.current
     if (!sb) return
     sb.focusable = false
     sb.scrollTo(0)
-    const updateScrollbarVisibility = () => {
-      const needsScroll = sb.scrollHeight > sb.viewport.height
-      sb.verticalScrollBar.visible = needsScroll
-    }
-    updateScrollbarVisibility()
   }, [groups])
 
   // textarea へのマウス操作で常にフォーカスを取り戻せるようにする。
@@ -186,7 +179,8 @@ export function HomeScreen() {
 
       <scrollbox
         ref={scrollBoxRef}
-        style={{ flexGrow: 1, flexDirection: "column" }}
+        style={{ flexGrow: 1 }}
+        contentOptions={{ flexDirection: "column" }}
         scrollY={true}
         stickyScroll={false}
         verticalScrollbarOptions={{ showArrows: false }}
