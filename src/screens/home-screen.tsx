@@ -16,8 +16,6 @@ const SUBMIT_KEY_BINDINGS = [
   { name: "return", ctrl: true, action: "submit" as const },
 ]
 
-type FocusTarget = "textarea" | "list"
-
 export function HomeScreen() {
   const app = useApp()
   const textareaRef = useRef<TextareaRenderable>(null)
@@ -26,7 +24,6 @@ export function HomeScreen() {
   const [error, setError] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
   const [viewMode, setViewMode] = useState<"line" | "card">("line")
-  const [focusTarget, setFocusTarget] = useState<FocusTarget>("textarea")
 
   const memos = useMemo(
     () => listMemos({ vaultPath: app.vaultPath, today: app.today(), days: app.days }),
@@ -43,10 +40,13 @@ export function HomeScreen() {
     return Object.entries(g).sort(([a], [b]) => (a < b ? 1 : -1))
   }, [memos])
 
+  const focusTextarea = () => textareaRef.current?.focus()
+
   const submit = () => {
     const body = textareaRef.current?.plainText?.trim() ?? ""
     if (!body) {
       setError("body is empty")
+      focusTextarea()
       return
     }
     try {
@@ -60,6 +60,7 @@ export function HomeScreen() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
+    focusTextarea()
   }
 
   const clear = () => {
@@ -71,93 +72,62 @@ export function HomeScreen() {
 
   const toggleView = () => setViewMode((m) => (m === "line" ? "card" : "line"))
 
-  const focusTextarea = () => setFocusTarget("textarea")
-  const focusList = () => setFocusTarget("list")
-
-  // フォーカス状態をネイティブ側にも反映。focused prop だけだと
-  // scrollbox がマウス操作で奪った後の復帰が確実でないため、明示的に同期する。
-  useEffect(() => {
-    const ta = textareaRef.current
-    if (!ta) return
-    if (focusTarget === "textarea") ta.focus()
-    else ta.blur()
-  }, [focusTarget])
-
   const scrollDown = () => scrollBoxRef.current?.scrollBy(3)
   const scrollUp = () => scrollBoxRef.current?.scrollBy(-3)
   const scrollPageDown = () => scrollBoxRef.current?.scrollBy(0.5, "viewport")
   const scrollPageUp = () => scrollBoxRef.current?.scrollBy(-0.5, "viewport")
-  const scrollToTop = () => scrollBoxRef.current?.scrollTo(0)
-  const scrollToBottom = () => scrollBoxRef.current?.scrollTo(999999)
 
   const isAtTextareaLastLine = () => {
     const t = textareaRef.current
-    if (!t) return true
+    if (!t) return false
     return t.logicalCursor.row >= t.lineCount - 1
   }
-  const isScrollAtTop = () => (scrollBoxRef.current?.scrollTop ?? 0) <= 0
+  const isAtTextareaFirstLine = () => {
+    const t = textareaRef.current
+    if (!t) return false
+    return t.logicalCursor.row <= 0
+  }
 
+  // textarea の最終行/先頭行で ↓/↑ が押されたらメモ一覧をスクロール。
+  // textarea はフォーカスを失わないので、続けてタイピング可能。
   const handleTextareaKeyDown = (key: KeyEvent) => {
     if (key.name === "down" && isAtTextareaLastLine()) {
-      focusList()
+      scrollDown()
+    } else if (key.name === "up" && isAtTextareaFirstLine()) {
+      scrollUp()
     }
   }
 
   // scrollbox はフォーカス不可にして textarea からフォーカスを奪わないようにする。
-  // OpenTUI のデフォルトでは scrollbox がマウス操作で focus を取りに行ってしまい、
-  // textarea が blur されたまま戻らない/ボタンへのクリックがブロックされるため。
-  // キーボード操作は useKeyboard でグローバルにハンドルしているので focus は不要。
+  // OpenTUI のデフォルトでは scrollbox がマウス操作で focus を取りに行ってしまうため。
   useEffect(() => {
     const sb = scrollBoxRef.current
-    if (!sb) return
-    sb.focusable = false
-    sb.onMouseDown = () => focusList()
-    return () => {
-      sb.onMouseDown = undefined
-    }
+    if (sb) sb.focusable = false
   }, [])
 
-  // textarea をクリックしたら textarea フォーカスへ。
+  // textarea へのマウス操作で常にフォーカスを取り戻せるようにする。
   useEffect(() => {
     const ta = textareaRef.current
     if (!ta) return
-    ta.onMouseDown = () => focusTextarea()
+    const handler = () => focusTextarea()
+    ta.onMouseDown = handler
+    ta.onMouseOver = handler
     return () => {
       ta.onMouseDown = undefined
+      ta.onMouseOver = undefined
     }
   }, [])
 
   useKeyboard((key) => {
-    // モード非依存のグローバルショートカット
     if (key.ctrl && key.name === "q") { app.requestExit(); return }
     if (key.ctrl && key.name === "r") { setRefreshTick((t) => t + 1); return }
     if (key.ctrl && key.name === "v") { toggleView(); return }
     if (key.name === "pagedown") { scrollPageDown(); return }
     if (key.name === "pageup") { scrollPageUp(); return }
-
-    // textarea フォーカス時はタイピング/カーソル移動 native 任せ。
-    // Down 最終行 → list 遷移は textarea.onKeyDown で処理する。
-    if (focusTarget === "textarea") {
-      if (key.name === "tab") setAsTask((t) => !t)
-      return
-    }
-
-    // list フォーカス時
-    if (key.name === "j" || key.name === "down") { scrollDown(); return }
-    if (key.name === "k" || key.name === "up") {
-      if (isScrollAtTop()) focusTextarea()
-      else scrollUp()
-      return
-    }
-    if (key.name === "g" && !key.shift) { scrollToTop(); return }
-    if (key.name === "G" || (key.shift && key.name === "g")) { scrollToBottom(); return }
-    if (key.name === "c") { toggleView(); return }
-    if (key.name === "i" || key.name === "escape") { focusTextarea(); return }
+    if (key.name === "tab") { setAsTask((t) => !t); return }
   })
 
-  const hint = focusTarget === "textarea"
-    ? "Cmd/Ctrl+Enter: submit  Tab: as-task  ↓: to list  Ctrl+V: toggle view  Ctrl+R/Q: reload/quit"
-    : "j/k/g/G: scroll  ↑(@top)/i/Esc: to input  c/Ctrl+V: view  Ctrl+R/Q: reload/quit"
+  const hint = "Cmd/Ctrl+Enter: submit  Tab: as-task  ↑↓(@ends)/PgUp/PgDn: scroll  Ctrl+V: view  Ctrl+R/Q: reload/quit"
 
   return (
     <box style={{ flexDirection: "column", padding: 1, flexGrow: 1 }}>
@@ -170,7 +140,7 @@ export function HomeScreen() {
         <textarea
           ref={textareaRef}
           placeholder="Type here, then Cmd+Enter (or Ctrl+Enter) to submit..."
-          focused={focusTarget === "textarea"}
+          focused
           keyBindings={SUBMIT_KEY_BINDINGS}
           onSubmit={submit}
           onKeyDown={handleTextareaKeyDown}
