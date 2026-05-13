@@ -103,12 +103,14 @@ export function HomeScreen() {
     }
   }
 
-  // scrollbox をクリックしたら明示的に list フォーカスへ。
-  // マウスホイール (onMouseScroll) ではフォーカスを変えない:
-  // textarea に書き込み中にスクロールできた方が自然なため。
+  // scrollbox はフォーカス不可にして textarea からフォーカスを奪わないようにする。
+  // OpenTUI のデフォルトでは scrollbox がマウス操作で focus を取りに行ってしまい、
+  // textarea が blur されたまま戻らない/ボタンへのクリックがブロックされるため。
+  // キーボード操作は useKeyboard でグローバルにハンドルしているので focus は不要。
   useEffect(() => {
     const sb = scrollBoxRef.current
     if (!sb) return
+    sb.focusable = false
     sb.onMouseDown = () => focusList()
     return () => {
       sb.onMouseDown = undefined
@@ -206,7 +208,6 @@ export function HomeScreen() {
         style={{ flexGrow: 1, flexDirection: "column" }}
         scrollY={true}
         stickyScroll={false}
-        focused={focusTarget === "list"}
         verticalScrollbarOptions={{ showArrows: false }}
       >
         {groups.length === 0 && <text>(no memos in the last {app.days} days)</text>}
