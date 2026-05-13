@@ -1,6 +1,6 @@
-import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
+import type { KeyEvent, ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { appendMemo, listMemos } from "../lib/memo-repository"
 import type { Memo } from "../lib/memo"
 import { useApp } from "../app"
@@ -16,6 +16,8 @@ const SUBMIT_KEY_BINDINGS = [
   { name: "return", ctrl: true, action: "submit" as const },
 ]
 
+type FocusTarget = "textarea" | "list"
+
 export function HomeScreen() {
   const app = useApp()
   const textareaRef = useRef<TextareaRenderable>(null)
@@ -24,6 +26,7 @@ export function HomeScreen() {
   const [error, setError] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
   const [viewMode, setViewMode] = useState<"line" | "card">("line")
+  const [focusTarget, setFocusTarget] = useState<FocusTarget>("textarea")
 
   const memos = useMemo(
     () => listMemos({ vaultPath: app.vaultPath, today: app.today(), days: app.days }),
@@ -63,9 +66,22 @@ export function HomeScreen() {
     textareaRef.current?.clear()
     setAsTask(false)
     setError(null)
+    focusTextarea()
   }
 
   const toggleView = () => setViewMode((m) => (m === "line" ? "card" : "line"))
+
+  const focusTextarea = () => setFocusTarget("textarea")
+  const focusList = () => setFocusTarget("list")
+
+  // フォーカス状態をネイティブ側にも反映。focused prop だけだと
+  // scrollbox がマウス操作で奪った後の復帰が確実でないため、明示的に同期する。
+  useEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    if (focusTarget === "textarea") ta.focus()
+    else ta.blur()
+  }, [focusTarget])
 
   const scrollDown = () => scrollBoxRef.current?.scrollBy(3)
   const scrollUp = () => scrollBoxRef.current?.scrollBy(-3)
@@ -74,92 +90,123 @@ export function HomeScreen() {
   const scrollToTop = () => scrollBoxRef.current?.scrollTo(0)
   const scrollToBottom = () => scrollBoxRef.current?.scrollTo(999999)
 
+  const isAtTextareaLastLine = () => {
+    const t = textareaRef.current
+    if (!t) return true
+    return t.logicalCursor.row >= t.lineCount - 1
+  }
+  const isScrollAtTop = () => (scrollBoxRef.current?.scrollTop ?? 0) <= 0
+
+  const handleTextareaKeyDown = (key: KeyEvent) => {
+    if (key.name === "down" && isAtTextareaLastLine()) {
+      focusList()
+    }
+  }
+
+  // scrollbox をクリックしたら明示的に list フォーカスへ。
+  // マウスホイール (onMouseScroll) ではフォーカスを変えない:
+  // textarea に書き込み中にスクロールできた方が自然なため。
+  useEffect(() => {
+    const sb = scrollBoxRef.current
+    if (!sb) return
+    sb.onMouseDown = () => focusList()
+    return () => {
+      sb.onMouseDown = undefined
+    }
+  }, [])
+
+  // textarea をクリックしたら textarea フォーカスへ。
+  useEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.onMouseDown = () => focusTextarea()
+    return () => {
+      ta.onMouseDown = undefined
+    }
+  }, [])
+
   useKeyboard((key) => {
-    // PageUp/PageDown work in both read-only and write modes
+    // モード非依存のグローバルショートカット
+    if (key.ctrl && key.name === "q") { app.requestExit(); return }
+    if (key.ctrl && key.name === "r") { setRefreshTick((t) => t + 1); return }
+    if (key.ctrl && key.name === "v") { toggleView(); return }
     if (key.name === "pagedown") { scrollPageDown(); return }
     if (key.name === "pageup") { scrollPageUp(); return }
 
-    // Ctrl+C is reserved by the terminal/runtime for SIGINT, so use Ctrl+V for the view toggle.
-    if (key.ctrl && key.name === "v") {
-      toggleView()
+    // textarea フォーカス時はタイピング/カーソル移動 native 任せ。
+    // Down 最終行 → list 遷移は textarea.onKeyDown で処理する。
+    if (focusTarget === "textarea") {
+      if (key.name === "tab") setAsTask((t) => !t)
       return
     }
-    if (app.readOnly) {
-      if (key.ctrl || key.meta) return
-      if (key.name === "r") setRefreshTick((t) => t + 1)
-      else if (key.name === "q") app.requestExit()
-      else if (key.name === "c") toggleView()
-      else if (key.name === "j" || key.name === "down") scrollDown()
-      else if (key.name === "k" || key.name === "up") scrollUp()
-      else if (key.name === "g") scrollToTop()
-      else if (key.name === "G" || (key.shift && key.name === "g")) scrollToBottom()
+
+    // list フォーカス時
+    if (key.name === "j" || key.name === "down") { scrollDown(); return }
+    if (key.name === "k" || key.name === "up") {
+      if (isScrollAtTop()) focusTextarea()
+      else scrollUp()
       return
     }
-    if (key.name === "tab") {
-      setAsTask((t) => !t)
-      return
-    }
-    if (key.ctrl && key.name === "q") app.requestExit()
-    else if (key.ctrl && key.name === "r") setRefreshTick((t) => t + 1)
+    if (key.name === "g" && !key.shift) { scrollToTop(); return }
+    if (key.name === "G" || (key.shift && key.name === "g")) { scrollToBottom(); return }
+    if (key.name === "c") { toggleView(); return }
+    if (key.name === "i" || key.name === "escape") { focusTextarea(); return }
   })
 
-  const hint = app.readOnly
-    ? `READ-ONLY: ${app.thinoConfig.mode}  r: refresh  c/Ctrl+V: toggle view  j/k: scroll  g/G: top/bot  q: quit`
-    : "Cmd+Enter / Ctrl+Enter: submit  Tab: toggle task  Ctrl+V: toggle view  Ctrl+R: reload  Ctrl+Q: quit  PgUp/PgDn: scroll"
+  const hint = focusTarget === "textarea"
+    ? "Cmd/Ctrl+Enter: submit  Tab: as-task  ↓: to list  Ctrl+V: toggle view  Ctrl+R/Q: reload/quit"
+    : "j/k/g/G: scroll  ↑(@top)/i/Esc: to input  c/Ctrl+V: view  Ctrl+R/Q: reload/quit"
 
   return (
     <box style={{ flexDirection: "column", padding: 1, flexGrow: 1 }}>
       <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
         <text>{`thino-tui  (${app.thinoConfig.mode})`}</text>
-        <text>{app.readOnly ? "READ-ONLY" : `${app.today()} ${app.nowHHMM()}`}</text>
+        <text>{`${app.today()} ${app.nowHHMM()}`}</text>
       </box>
 
-      {!app.readOnly && (
-        <>
-          <box style={{ border: true, marginTop: 1, height: 8 }} title="New memo">
-            <textarea
-              ref={textareaRef}
-              placeholder="Type here, then Cmd+Enter (or Ctrl+Enter) to submit..."
-              focused
-              keyBindings={SUBMIT_KEY_BINDINGS}
-              onSubmit={submit}
-            />
+      <box style={{ border: true, marginTop: 1, height: 8 }} title="New memo">
+        <textarea
+          ref={textareaRef}
+          placeholder="Type here, then Cmd+Enter (or Ctrl+Enter) to submit..."
+          focused={focusTarget === "textarea"}
+          keyBindings={SUBMIT_KEY_BINDINGS}
+          onSubmit={submit}
+          onKeyDown={handleTextareaKeyDown}
+        />
+      </box>
+      <box
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 1,
+        }}
+      >
+        <box style={{ flexDirection: "row", alignItems: "center", flexShrink: 1 }}>
+          <HasciiCheckbox isChecked={asTask} onChange={setAsTask}>append as task</HasciiCheckbox>
+          {error && <text>{`   error: ${error}`}</text>}
+        </box>
+        <box
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginLeft: 1,
+            flexShrink: 0,
+          }}
+        >
+          <HasciiButton size="sm" onPress={submit}>Submit</HasciiButton>
+          <box style={{ marginLeft: 1 }}>
+            <HasciiButton size="sm" variant="secondary" onPress={clear}>Clear</HasciiButton>
           </box>
-          <box
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginTop: 1,
-            }}
-          >
-            <box style={{ flexDirection: "row", alignItems: "center", flexShrink: 1 }}>
-              <HasciiCheckbox isChecked={asTask} onChange={setAsTask}>append as task</HasciiCheckbox>
-              {error && <text>{`   error: ${error}`}</text>}
-            </box>
-            <box
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginLeft: 1,
-                flexShrink: 0,
-              }}
-            >
-              <HasciiButton size="sm" onPress={submit}>Submit</HasciiButton>
-              <box style={{ marginLeft: 1 }}>
-                <HasciiButton size="sm" variant="secondary" onPress={clear}>Clear</HasciiButton>
-              </box>
-            </box>
-          </box>
-        </>
-      )}
+        </box>
+      </box>
 
       <scrollbox
         ref={scrollBoxRef}
         style={{ flexGrow: 1, flexDirection: "column" }}
         scrollY={true}
         stickyScroll={false}
-        viewportCulling={false}
+        focused={focusTarget === "list"}
         verticalScrollbarOptions={{ showArrows: false }}
       >
         {groups.length === 0 && <text>(no memos in the last {app.days} days)</text>}

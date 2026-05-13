@@ -6,7 +6,6 @@ export type AppContextValue = {
   vaultPath: string
   thinoConfig: ThinoConfig
   days: number
-  readOnly: boolean
   today: () => string
   nowHHMM: () => string
   // Called when the user explicitly quits. Implementation is provided by index.tsx
