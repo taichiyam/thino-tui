@@ -95,7 +95,7 @@ export function HasciiButton(props: Props) {
         justifyContent="center"
         {...press.bind}
       >
-        <text fg={tone}>{props.children}</text>
+        <text fg={tone} selectable={false}>{props.children}</text>
       </box>
     )
   }
@@ -114,7 +114,7 @@ export function HasciiButton(props: Props) {
         justifyContent="center"
         {...press.bind}
       >
-        <text fg={fg}>{props.children}</text>
+        <text fg={fg} selectable={false}>{props.children}</text>
       </box>
     )
   }
@@ -139,7 +139,7 @@ export function HasciiButton(props: Props) {
         justifyContent="center"
         {...press.bind}
       >
-        <text fg={fg}>{props.children}</text>
+        <text fg={fg} selectable={false}>{props.children}</text>
       </box>
     )
   }
@@ -164,7 +164,7 @@ export function HasciiButton(props: Props) {
         justifyContent="center"
         {...press.bind}
       >
-        <text fg={fg}>{props.children}</text>
+        <text fg={fg} selectable={false}>{props.children}</text>
       </box>
     )
   }
