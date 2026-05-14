@@ -1,7 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, appendFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { readDailyNotesConfig, type DailyNotesConfig } from "./daily-notes-config"
 import { parseMemoLine, parseContinuation, formatMemoBlock, type Memo } from "./memo"
+import { writeNewDailyNote } from "./new-daily-note"
+
+export { TemplaterAbortError } from "./new-daily-note"
 
 export type MemoRepoOptions = {
   vaultPath: string
@@ -122,8 +125,8 @@ export function appendMemo(text: string, append: AppendOptions, opts: MemoRepoOp
   withRetrySync(() => {
     mkdirSync(dirname(path), { recursive: true })
     if (!existsSync(path)) {
-      writeFileSync(path, `${block}\n`)
-      headerLineNumber = 1
+      const result = writeNewDailyNote(path, opts.vaultPath, opts.today, cfg, text, block, asTask)
+      headerLineNumber = result.headerLineNumber
       return
     }
     const current = readFileSync(path, "utf-8")

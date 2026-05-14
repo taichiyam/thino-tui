@@ -1,8 +1,9 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { listMemos, appendMemo, _internal, type MemoRepoOptions } from "../../src/lib/memo-repository"
+import { listMemos, appendMemo, _internal, TemplaterAbortError, type MemoRepoOptions } from "../../src/lib/memo-repository"
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
+import { hasTemplaterSyntax, expandCorePlaceholders } from "../../src/lib/new-daily-note"
 
 const FIXTURE = join(import.meta.dir, "..", "fixtures", "vault")
 
@@ -176,5 +177,118 @@ describe("withRetrySync (iCloud lock retry)", () => {
       }),
     ).toThrow(/busy forever/)
     expect(calls).toBe(_internal.MAX_RETRIES + 1)
+  })
+})
+
+// ─── 3段フォールバック: 純関数テスト ───────────────────────────────────────
+
+describe("hasTemplaterSyntax", () => {
+  test("Templater 構文を含む文字列は true", () => {
+    expect(hasTemplaterSyntax("hello <% tp.date.now() %>")).toBe(true)
+  })
+  test("<% を含まない文字列は false", () => {
+    expect(hasTemplaterSyntax("## Daily Note\n{{date}}")).toBe(false)
+  })
+})
+
+describe("expandCorePlaceholders", () => {
+  test("{{date}} を YYYY-MM-DD 形式に展開する", () => {
+    expect(expandCorePlaceholders("# {{date}}", "2026-05-14")).toBe("# 2026-05-14")
+  })
+  test("{{date:YYYY/MM/DD}} のフォーマット指定を展開する", () => {
+    expect(expandCorePlaceholders("{{date:YYYY/MM/DD}}", "2026-05-14")).toBe("2026/05/14")
+  })
+  test("{{title}} を日付文字列に展開する", () => {
+    expect(expandCorePlaceholders("# {{title}}", "2026-05-14")).toBe("# 2026-05-14")
+  })
+})
+
+// ─── 3段フォールバック: appendMemo 統合テスト ──────────────────────────────
+
+describe("appendMemo — 3段フォールバック (新規デイリーノート)", () => {
+  let vault: string
+
+  beforeEach(() => {
+    vault = mkdtempSync(join(tmpdir(), "thino-tui-fallback-"))
+    mkdirSync(join(vault, ".obsidian"), { recursive: true })
+  })
+  afterEach(() => {
+    rmSync(vault, { recursive: true, force: true })
+  })
+
+  function setTemplate(templateRelPath: string, content: string) {
+    writeFileSync(
+      join(vault, ".obsidian", "daily-notes.json"),
+      JSON.stringify({ folder: "", format: "YYYY-MM-DD", template: templateRelPath }),
+    )
+    const fullPath = templateRelPath.endsWith(".md") ? templateRelPath : `${templateRelPath}.md`
+    const absPath = join(vault, fullPath)
+    mkdirSync(require("node:path").dirname(absPath), { recursive: true })
+    writeFileSync(absPath, content)
+  }
+
+  function setNoTemplate() {
+    writeFileSync(
+      join(vault, ".obsidian", "daily-notes.json"),
+      JSON.stringify({ folder: "", format: "YYYY-MM-DD", template: "" }),
+    )
+  }
+
+  const TODAY = "2026-05-14"
+  const opts = (): MemoRepoOptions => ({ vaultPath: vault, today: TODAY, days: 7 })
+
+  test("[Tier2] テンプレ無し → 従来どおり裸のファイルを作成する", () => {
+    setNoTemplate()
+    appendMemo("裸ファイル", { time: "10:00" }, opts())
+    expect(readFileSync(join(vault, `${TODAY}.md`), "utf-8")).toBe("- 10:00 裸ファイル\n")
+  })
+
+  test("[Tier2] 静的テンプレ → テンプレ内容 + メモブロックで作成される", () => {
+    setTemplate("Templates/Daily", "## Daily Note\n{{date}}\n\n")
+    appendMemo("テンプレ付きメモ", { time: "09:00" }, opts())
+    const body = readFileSync(join(vault, `${TODAY}.md`), "utf-8")
+    expect(body).toContain("## Daily Note\n")
+    expect(body).toContain(`${TODAY}\n`)
+    expect(body).toContain("- 09:00 テンプレ付きメモ\n")
+    // テンプレ部分がメモより前に来ること
+    const templateEnd = body.indexOf(`${TODAY}`)
+    const memoStart = body.indexOf("- 09:00")
+    expect(templateEnd).toBeLessThan(memoStart)
+  })
+
+  test("[Tier2] テンプレに {{date:YYYY/MM/DD}} が含まれていれば展開される", () => {
+    setTemplate("Templates/Daily", "# {{date:YYYY/MM/DD}}\n")
+    appendMemo("日付フォーマット", { time: "08:00" }, opts())
+    const body = readFileSync(join(vault, `${TODAY}.md`), "utf-8")
+    expect(body).toContain("# 2026/05/14\n")
+  })
+
+  test("[Tier2] テンプレファイルが存在しない場合は裸ファイル作成にフォールバックする", () => {
+    writeFileSync(
+      join(vault, ".obsidian", "daily-notes.json"),
+      JSON.stringify({ folder: "", format: "YYYY-MM-DD", template: "Templates/Missing" }),
+    )
+    appendMemo("テンプレ不在", { time: "11:00" }, opts())
+    expect(readFileSync(join(vault, `${TODAY}.md`), "utf-8")).toBe("- 11:00 テンプレ不在\n")
+  })
+
+  test("[Tier3] Templater 構文入りテンプレ → TemplaterAbortError が投げられる", () => {
+    setTemplate("Templates/Templater", "# <% tp.date.now() %>\n")
+    expect(() => appendMemo("危険テンプレ", { time: "12:00" }, opts())).toThrow(
+      TemplaterAbortError,
+    )
+    // ファイルが作られていないことを確認
+    expect(existsSync(join(vault, `${TODAY}.md`))).toBe(false)
+  })
+
+  test("[Tier2] 既存ファイルには従来どおり追記される（テンプレは再適用しない）", () => {
+    setTemplate("Templates/Daily", "## Header\n")
+    appendMemo("1回目", { time: "10:00" }, opts())
+    appendMemo("2回目", { time: "11:00" }, opts())
+    const body = readFileSync(join(vault, `${TODAY}.md`), "utf-8")
+    // テンプレヘッダは1回だけ
+    expect(body.split("## Header").length - 1).toBe(1)
+    expect(body).toContain("- 10:00 1回目\n")
+    expect(body).toContain("- 11:00 2回目\n")
   })
 })
