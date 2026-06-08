@@ -4,6 +4,10 @@
 
 [Thino](https://github.com/Quorafind/Obsidian-Thino) プラグインを使っている Obsidian ユーザー向けの軽量 TUI。Obsidian を開かなくても、ターミナルから直接メモを追記したり、最近のメモを一覧できる。データは Vault の Markdown に直接書き込まれるので、Obsidian 側の Thino パネルと完全に同じものを編集している感覚で使える。
 
+![thino-tui (左) と Obsidian Thino パネル (右) が同じメモを表示](docs/screenshots/hero.png)
+
+> 左の TUI で投稿したメモは、Obsidian の Thino パネル（右）にもそのまま現れる。両者は同じ Vault の Markdown を読み書きしているだけ。
+
 Built with **Bun + TypeScript + [OpenTUI](https://github.com/anomalyco/opentui) + [hascii-ui](https://ui.hascii.sh)**.
 
 ## Features
